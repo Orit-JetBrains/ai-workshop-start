@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments, and for each one say where it is, how to reproduce it, and a suggested fix.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree.
 ---
 
 # Code review
@@ -29,5 +29,16 @@ Leave one **inline comment per finding**, anchored to the specific
 - **Suggested fix** — the concrete change that resolves it. Prefer a short code
   snippet or a GitHub suggestion block; otherwise one specific sentence. Don't
   just restate the problem — say what to do.
+
+## Apply the fixes
+
+After the comments are written, apply each suggested fix to the working tree:
+
+1. Edit the code to make exactly the change the comment's **Suggested fix**
+   describes — no more.
+2. If a fix is too risky or ambiguous to apply mechanically, leave the comment,
+   skip the edit, and say why.
+3. When done, show the resulting diff and run the project's tests/build so the
+   changes are verified, not just written.
 
 If nothing is wrong, say so in one line and stop.
