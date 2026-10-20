@@ -84,4 +84,4 @@ never a future check you will not be awake to make.
 `gh pr merge` — not with `--auto` either, which merges just the same once checks
 pass. Leave the branch in place: deleting it closes the PR out from under the
 review. The PR stays open for the code-review automation that its creation
-triggers, and the user merges it.
+triggers, which reviews and merges it.
