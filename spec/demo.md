@@ -43,7 +43,7 @@ Each of the five steps ends with its screen **compared** with a checked-in image
 screens above: `before-a-scan`, `an-error`
 - **One changed pixel is a failure**: no tolerance, neither in a pixel's colour nor in how many differ.
   Playwright allows a fifth of a colour by default, which is a tolerance for a page whose rendering is
-  not pinned; everything about this one is
+  not pinned; everything about this one is pinned, so a difference means the page changed.
 - The images are **CI's**: Linux, and the Chromium the workflow installs. They are identical for a given
   browser build, not across them, so **only CI compares**; elsewhere the comparison is skipped
 - On CI, a screen that differs from its image, or a step with no image, **fails** the run. Its artifact holds
