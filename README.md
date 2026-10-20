@@ -25,7 +25,8 @@ MPS · 41 skills
 ```
 
 `./skill-atlas serve` opens a local web view at http://127.0.0.1:4321/: a field for a
-repository link, its skills, and each skill's SKILL.md.
+repository link, its skills, and each skill's SKILL.md. An organization link lists its repositories
+with skills; choose one to see them.
 
 Set `GITHUB_TOKEN` for a higher GitHub rate limit. `npm test` runs the tests.
 

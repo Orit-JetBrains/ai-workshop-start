@@ -7,8 +7,8 @@ import net from 'node:net';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { openGitHub } from '../src/core/github.ts';
-import { replay } from '../src/core/replay.ts';
+import { openGitHub, openOrganization } from '../src/core/github.ts';
+import { replay, type Recording } from '../src/core/replay.ts';
 import { openDirectory } from '../src/local.ts';
 import { serve } from '../src/web.ts';
 import { CLI, EXAMPLE_COMMIT, FIXTURE, trees } from './helpers.ts';
@@ -21,8 +21,9 @@ type Answer = {
   error?: string;
 };
 
-// `skill-atlas serve 0`, as a user runs it; stopped after the tests.
-const cli = spawn(process.execPath, [CLI, 'serve', '0'], { stdio: ['ignore', 'pipe', 'pipe'] });
+// `skill-atlas serve 0`, as a user runs it; stopped after the tests. Without GITHUB_TOKEN, so an
+// organization in the field is answered before any request leaves for GitHub.
+const cli = spawn(process.execPath, [CLI, 'serve', '0'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GITHUB_TOKEN: '' } });
 const address = await new Promise<string>((resolve, reject) => {
   let out = '';
   cli.stdout.on('data', (chunk) => {
@@ -198,14 +199,63 @@ test('unreachable repository, or no repository → its message, status 400', asy
   assert.equal(JSON.parse(empty.body).error, 'Enter a GitHub URL or a directory');
 });
 
-test('the field takes one repository: an organization says to scan it with the CLI', async () => {
-  // No request reaches GitHub: the organization is recognised from the input alone.
+test('an organization in the field, without GITHUB_TOKEN → a message that asks for it, status 400', async () => {
+  // The real CLI's serve: the organization reaches the organization scan, which needs a token.
   const organization = await scanned('github.com/JetBrains');
   assert.equal(organization.status, 400);
   assert.equal(
     organization.answer.error,
-    'github.com/JetBrains is an organization, not a repository: scan it with skill-atlas scan github.com/JetBrains',
+    'Scanning an organization needs GITHUB_TOKEN: without it GitHub allows 60 requests an hour, too few for its repositories',
   );
+});
+
+test('an organization: its repository count, then each repository that has skills with its count, sorted by name', async () => {
+  await withOrganization(async (url) => {
+    const { status, answer } = await scanned('https://github.com/JetBrains', url);
+    assert.equal(status, 200);
+    assert.deepEqual(answer, {
+      organization: 'JetBrains',
+      repositories: 4,
+      withSkills: [
+        { id: 'JetBrains/MPS', name: 'MPS', skills: 1 },
+        { id: 'JetBrains/kotlin', name: 'kotlin', skills: 2 },
+      ],
+      warnings: [`JetBrains/broken: Not found on GitHub: ${API}/repos/JetBrains/broken/commits/main; skipped`],
+    });
+  });
+});
+
+test('the page draws an organization: the heading, each repository with skills and its count, the warnings', async () => {
+  await withOrganization(async (url) => {
+    const page = await openPage(url);
+    await page.scan('https://github.com/JetBrains');
+    const results = page.element('results');
+    assert.equal(results.querySelector('h1')?.text, 'JetBrains · 4 repositories, 2 with skills');
+    assert.deepEqual(
+      results.querySelectorAll('li.repository').map((item) => item.text),
+      ['MPS1 skill', 'kotlin2 skills'],
+    );
+    assert.match(results.querySelector('ul.warnings')?.text ?? '', /^warning: JetBrains\/broken: /);
+    // The filter is the skills'; an organization's list has none to filter.
+    assert.equal(page.filterShown(), false);
+  });
+});
+
+test('choosing a repository of the organization scans it: its URL in the field, its skills in the list', async () => {
+  await withOrganization(async (url) => {
+    const page = await openPage(url);
+    await page.scan('https://github.com/JetBrains');
+    const kotlin = page.element('results').querySelectorAll('li.repository')[1];
+    kotlin.dispatch('click');
+    assert.equal(page.element('repo').value, 'https://github.com/JetBrains/kotlin');
+    await until(() => page.element('results').querySelector('h1')?.text === 'JetBrains/kotlin · 2 skills');
+    assert.deepEqual(page.visible(), ['a', 'b']);
+    assert.equal(page.chosen(), 'a');
+    // The keyboard does the same as the mouse.
+    await page.scan('https://github.com/JetBrains');
+    page.element('results').querySelectorAll('li.repository')[0].dispatch('keydown', { key: 'Enter' });
+    await until(() => page.element('results').querySelector('h1')?.text === 'JetBrains/MPS · 1 skill');
+  });
 });
 
 test('any other path → 404', async () => {
@@ -280,3 +330,56 @@ test('serve with a port that is not a number → usage, exit code 1', () => {
   assert.equal(wrong.status, 1);
   assert.equal(wrong.stderr.trim(), 'Usage: skill-atlas serve [port]');
 });
+
+const API = 'https://api.github.com';
+
+/**
+ * What GitHub answers for JetBrains, an organization: kotlin with two skills, MPS with one, docs
+ * with none, and broken, which GitHub fails to answer. kotlin and MPS answer a full scan too.
+ */
+function organization(): Recording {
+  const sha = (name: string) => `sha-${name}`;
+  const recording: Recording = {
+    [`${API}/users/JetBrains`]: { status: 200, body: { login: 'JetBrains', type: 'Organization' } },
+    [`${API}/orgs/JetBrains/repos?per_page=100&page=1`]: {
+      status: 200,
+      body: ['kotlin', 'MPS', 'docs', 'broken'].map((name) => ({ full_name: `JetBrains/${name}`, default_branch: 'main' })),
+    },
+    [`${API}/repos/JetBrains/broken/commits/main`]: { status: 404, body: { message: 'Not Found' } },
+  };
+  const skills: Record<string, string[]> = { kotlin: ['a', 'b'], MPS: ['c'], docs: [] };
+  for (const [name, names] of Object.entries(skills)) {
+    const id = `JetBrains/${name}`;
+    recording[`${API}/repos/${id}`] = { status: 200, body: { full_name: id, default_branch: 'main' } };
+    recording[`${API}/repos/${id}/commits/main`] = { status: 200, body: { sha: sha(name) } };
+    Object.assign(recording, trees(id, sha(name), names.length ? names.map((skill) => `.claude/skills/${skill}/SKILL.md`) : ['README.md']));
+    for (const skill of names) {
+      recording[`https://raw.githubusercontent.com/${id}/${sha(name)}/.claude/skills/${skill}/SKILL.md`] = {
+        status: 200,
+        body: `---\nname: ${skill}\ndescription: Skill ${skill}.\n---\n`,
+      };
+    }
+  }
+  return recording;
+}
+
+/** A web view over the organization above, with a token for it; stopped after `work`. */
+async function withOrganization(work: (url: string) => Promise<void>) {
+  const fetch = replay(organization());
+  const { url, server } = await serve(
+    0,
+    (input) => openGitHub(input, { fetch }),
+    (input) => openOrganization(input, { fetch, token: 'test' }),
+  );
+  try {
+    await work(url);
+  } finally {
+    server.close();
+  }
+}
+
+/** Waits for what a click starts but does not hand back: a scan the page runs on its own. */
+async function until(done: () => boolean) {
+  for (let i = 0; i < 200 && !done(); i++) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.ok(done(), 'the page did not get there');
+}

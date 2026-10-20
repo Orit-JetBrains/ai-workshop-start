@@ -9,7 +9,7 @@ import { serve } from './web.ts';
 
 const token = process.env.GITHUB_TOKEN || undefined;
 
-/** One repository, as `scan` and the web view take it; an organization belongs to `scan` alone. */
+/** One repository, as `scan` and the web view take it; an organization is opened on its own, below. */
 const open = async (input: string) => {
   if (parseGitHubUrl(input)) return openGitHub(input, { fetch, token });
   if (parseGitHubOrganization(input)) {
@@ -18,10 +18,12 @@ const open = async (input: string) => {
   return openDirectory(input);
 };
 
+const organization = (input: string) => openOrganization(input, { fetch, token });
+
 process.exitCode = await run(process.argv.slice(2), {
   open,
-  openOrganization: (input) => openOrganization(input, { fetch, token }),
+  openOrganization: organization,
   print: (text) => console.log(text),
   error: (text) => console.error(text),
-  serve: async (port) => (await serve(port, open)).url,
+  serve: async (port) => (await serve(port, open, organization)).url,
 });

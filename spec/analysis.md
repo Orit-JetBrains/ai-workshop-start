@@ -37,7 +37,7 @@ organization — or of a **user account**, as both are listed — and how many p
 - An unreachable organization or user → a clear message, exit code 1
 - A repository GitHub fails to answer, an *empty* one say → a *warning*, the scan goes on; a *rate limit* ends it
 - At most **8 repositories at a time**
-- The web view takes one repository: an organization in its field says to use the CLI
+- The web view scans an organization too, and a repository chosen from it
 ## Details
 - **GitHub API**, no clone; *under 5 s* for intellij-community
 - The skills come from the *skill roots' trees*, which tell a symbolic link from a file
