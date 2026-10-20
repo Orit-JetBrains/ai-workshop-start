@@ -41,6 +41,22 @@ After the comments are written, apply each suggested fix to the working tree:
 3. When done, show the resulting diff and run the project's tests/build so the
    changes are verified, not just written.
 
+**When the target is a pull request, the working tree is not the deliverable.**
+A fix that stays in a local tree is a fix nobody receives, and the PR still
+carries the bug the comment describes. So finish each finding on the PR itself:
+
+4. Check out the PR branch before editing (`gh pr checkout <pr>`), so the fixes
+   land on the branch under review and not on a detached tree or on `main`.
+5. Commit the applied fixes and push them to the PR branch.
+6. Reply on each comment's thread saying which commit fixed it, then resolve the
+   thread. A thread you skipped in step 2 gets a reply saying why, and stays
+   open.
+
+A finding is **addressed** only once its fix is pushed to the PR branch — or it
+is explicitly dismissed with a reply explaining why it is not a defect. Posting
+the comment is half the job; a run that left comments and pushed nothing has not
+applied anything.
+
 ## Merging
 
 A clean review ends with the pull request **merged**. Do the merge yourself in
@@ -54,6 +70,16 @@ merging, list the PR's review threads and confirm every one is resolved: fixed
 by a pushed commit, or explicitly dismissed with a reply saying why it is not a
 defect. Treat an open, unanswered thread as blocking,
 including comments from earlier reviewers and bots, not just your own.
+
+Run that check against the API, not from memory of what this run did — and
+treat a non-zero count as blocking even when the run believes it fixed
+everything, since an unpushed fix leaves the thread open and the PR unfixed.
+
+If this run posted **any** inline finding, the review is by definition not
+clean: do not post the 🟢, and do not merge until each of those findings is
+pushed and its thread resolved. A 🟢 approval on the same run that filed a
+finding is a contradiction, and merging on it ships the bug the comment
+describes.
 
 ```bash
 # Unresolved threads must be empty before any merge.
