@@ -98,20 +98,17 @@ const PAGE = `<!doctype html>
 <style>
   :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
   body { margin: 0; display: grid; grid-template-rows: auto 1fr; height: 100vh; }
-  form { display: flex; gap: .5rem; padding: .75rem 1rem; border-bottom: 1px solid #8884; }
-  form input { flex: 1; font: inherit; padding: .4rem .6rem; }
+  /* The top bar: the scan field on the left, the filter on the right. Both stay on screen whatever
+     the list below shows, and only the list scrolls. */
+  header { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; padding: .75rem 1rem; border-bottom: 1px solid #8884; }
+  form { display: flex; gap: .5rem; min-width: 0; }
+  form input { flex: 1; min-width: 0; font: inherit; padding: .4rem .6rem; }
   form button { font: inherit; padding: .4rem 1rem; }
   main { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; min-height: 0; }
   #list, #file { overflow: auto; padding: 1rem; min-height: 0; }
-  /* The filter stays put and only the skills scroll: in a repository with tens of skills, a filter
-     inside the scrolling panel is out of sight exactly when it is wanted. */
-  #list { border-right: 1px solid #8884; display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
-  #results { overflow: auto; min-height: 0; }
-  #search { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
-  /* An author display rule beats the browser's own [hidden] { display: none }, so the rule above
-     would keep the filter on screen before a scan has drawn a list. This puts hidden back. */
-  #search[hidden] { display: none; }
-  #search input { flex: 1; min-width: 0; font: inherit; padding: .3rem .5rem; }
+  #list { border-right: 1px solid #8884; }
+  #search { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+  #search input { flex: 1; min-width: 0; font: inherit; padding: .4rem .6rem; }
   #count { font-size: .85rem; opacity: .8; white-space: nowrap; }
   h1 { font-size: 1.1rem; margin: 0 0 .75rem; }
   ul { list-style: none; margin: 0; padding: 0; }
@@ -127,23 +124,24 @@ const PAGE = `<!doctype html>
 </style>
 </head>
 <body>
-<form id="scan">
-  <input id="repo" name="repo" placeholder="https://github.com/owner/repo, https://github.com/owner or a local directory" aria-label="Repository" required>
-  <button>Scan</button>
-</form>
+<header>
+  <form id="scan">
+    <input id="repo" name="repo" placeholder="https://github.com/owner/repo, https://github.com/owner or a local directory" aria-label="Repository" required>
+    <button>Scan</button>
+  </form>
+  <div id="search">
+    <input id="filter" type="search" placeholder="Filter skills" aria-label="Filter skills">
+    <span id="count"></span>
+  </div>
+</header>
 <main>
   <section id="list">
-    <div id="search" hidden>
-      <input id="filter" type="search" placeholder="Filter skills" aria-label="Filter skills">
-      <span id="count"></span>
-    </div>
     <div id="results"></div>
   </section>
   <section id="file"></section>
 </main>
 <script>
 const results = document.getElementById('results');
-const search = document.getElementById('search');
 const filter = document.getElementById('filter');
 const count = document.getElementById('count');
 const file = document.getElementById('file');
@@ -164,22 +162,23 @@ function choose(item, skill) {
 
 // Every skill, or repository, of the last scan: the item showing it and the texts the filter looks
 // in. The filter hides items in place rather than rebuilding the list, so the skill chosen on the
-// right stays chosen while the query narrows.
-let rendered = [];
+// right stays chosen while the query narrows. Undefined while there is no list.
+let rendered;
 
 function matches(entry, query) {
   return entry.texts.some((text) => text.toLowerCase().includes(query));
 }
 
-// The filter, shown over a fresh list; what it filters is in its placeholder.
+// The filter, set to a fresh list; what it filters is in its placeholder.
 function showFilter(what) {
   filter.placeholder = 'Filter ' + what;
   filter.setAttribute('aria-label', 'Filter ' + what);
-  search.hidden = false;
   applyFilter();
 }
 
 function applyFilter() {
+  // No list yet, or a scan running or failed: nothing to count.
+  if (!rendered) return (count.textContent = '');
   const query = filter.value.trim().toLowerCase();
   let shown = 0;
   for (const entry of rendered) {
@@ -202,9 +201,9 @@ async function scan(input) {
   results.replaceChildren(element('p', '', 'Scanning…'));
   file.replaceChildren();
   // A scan starts from the whole list again: the previous query says nothing about these skills.
-  rendered = [];
+  rendered = undefined;
   filter.value = '';
-  search.hidden = true;
+  applyFilter();
   let answer;
   try {
     const response = await fetch('/api/scan?repo=' + encodeURIComponent(input));
@@ -215,6 +214,7 @@ async function scan(input) {
   if (token !== latestScan) return;
   if (answer.error) return results.replaceChildren(element('p', 'error', answer.error));
   if (answer.organization) return showOrganization(answer);
+  rendered = [];
   const total = answer.skills.length;
   const items = element('ul');
   for (const skill of answer.skills) {
@@ -250,6 +250,7 @@ function showWarnings(list) {
 // An organization: its repositories that have skills, each with its count. Choosing one scans it,
 // as if its URL had been typed into the field.
 function showOrganization(answer) {
+  rendered = [];
   const total = answer.repositories;
   const items = element('ul');
   for (const repository of answer.withSkills) {

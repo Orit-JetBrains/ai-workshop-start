@@ -62,39 +62,39 @@ test('the page: a field for the repository and a Scan button', async () => {
 // skills: code-style, commits, deploy, release-checklist and review twice.
 const ALL = ['code-style', 'commits', 'deploy', 'release-checklist', 'review', 'review'];
 
-test('the page: a filter above the skills list, shown once a scan has drawn one', async () => {
+// Layout is checked on the HTML and CSS the server serves: the DOM below has no stylesheet.
+test('the top bar: the scan field on the left, the filter on the right, outside the list that scrolls', async () => {
+  const { body } = await get('/');
+  const header = /<header>([\s\S]*?)<\/header>/.exec(body)?.[1] ?? '';
+  // In the header, the scan form first, then the filter: left, then right.
+  assert.ok(header.includes('<form id="scan">'), 'the scan form is in the top bar');
+  assert.ok(header.includes('<input id="filter"'), 'the filter is in the top bar');
+  assert.ok(header.indexOf('<form id="scan">') < header.indexOf('<div id="search">'), 'the scan field comes first');
+  // Not inside <main>, whose panels scroll: the filter stays on screen while the list scrolls.
+  const main = /<main>([\s\S]*?)<\/main>/.exec(body)?.[1] ?? '';
+  assert.doesNotMatch(main, /id="(filter|search|repo)"/);
+  const [, css] = /<style>([\s\S]*?)<\/style>/.exec(body) ?? [];
+  assert.match(css ?? '', /header\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*2fr 1fr/);
+  assert.match(css ?? '', /#list, #file\s*\{[^}]*overflow:\s*auto/);
+});
+
+test('the filter is always shown: before a scan, after one, and after an error', async () => {
+  const { body } = await get('/');
+  assert.doesNotMatch(body, /<div id="search"[^>]*\shidden/);
   const page = await openPage(address);
-  assert.equal(page.filterShown(), false, 'nothing to filter before a scan');
+  assert.equal(page.filterShown(), true, 'shown before a scan');
+  // Nothing to count yet, and typing does no harm.
+  assert.equal(page.count(), '');
+  page.type('review');
+  assert.equal(page.count(), '');
   await page.scan(FIXTURE);
   assert.equal(page.filterShown(), true);
   assert.deepEqual(page.visible(), ALL);
   assert.equal(page.count(), '6 of 6');
-});
-
-// The DOM below models `hidden` as a property, with no stylesheet behind it, so it cannot see that
-// `#search { display: flex }` overrides the browser's own `[hidden] { display: none }` — an author
-// display rule wins over the user agent's. The rule that puts `hidden` back is checked on the CSS
-// the server actually serves; without it the filter is on screen before there is a list to filter.
-test('the filter is laid out without defeating its own hidden attribute', async () => {
-  const page = await get('/');
-  assert.match(page.body, /#search\[hidden\]\s*\{[^}]*display:\s*none/);
-  const [, css] = /<style>([\s\S]*?)<\/style>/.exec(page.body) ?? [];
-  assert.ok(css, 'the page has a stylesheet');
-  // The override must come after the rule it overrides: the two have equal specificity.
-  assert.ok(css.indexOf('#search[hidden]') > css.indexOf('#search {'), '#search[hidden] must follow #search');
-});
-
-// Layout, for the same reason: the DOM below cannot tell which box scrolls. A filter inside the
-// scrolling panel leaves the screen as soon as a long list is scrolled, which is when it is wanted.
-test('the filter stays put while the skills scroll', async () => {
-  const [, css] = /<style>([\s\S]*?)<\/style>/.exec((await get('/')).body) ?? [];
-  assert.ok(css, 'the page has a stylesheet');
-  const rule = (selector: string) => new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(css!)?.[1] ?? '';
-  // The panel holding the filter must not be the thing that scrolls; the skills below it must be.
-  assert.match(rule('#list'), /overflow:\s*hidden/);
-  assert.match(rule('#results'), /overflow:\s*auto/);
-  // …and the override has to follow the `#list, #file { overflow: auto }` it overrides.
-  assert.ok(css.indexOf('#list {') > css.indexOf('#list, #file'), '#list must follow #list, #file');
+  // An error leaves no list to count, but the filter stays.
+  await page.scan(join(FIXTURE, 'no-such-directory'));
+  assert.equal(page.filterShown(), true);
+  assert.equal(page.count(), '');
 });
 
 test('typing filters the list to the skills whose name or description matches', async () => {
