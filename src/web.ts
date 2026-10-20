@@ -8,11 +8,17 @@ import { scan, type Source } from './core/scan.ts';
 /** Starts the web view on 127.0.0.1; resolves to its address once it listens. */
 export async function serve(port: number, open: (input: string) => Promise<Source>): Promise<{ url: string; server: Server }> {
   const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     const send = (status: number, type: string, body: string) => {
       response.writeHead(status, { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'no-store' });
       response.end(body);
     };
+    // Parse the request target defensively: a malformed URL must not reject the async handler.
+    let url: URL;
+    try {
+      url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    } catch {
+      return send(400, 'text/plain', 'Bad request');
+    }
     if (request.method !== 'GET') return send(405, 'text/plain', 'Method not allowed');
     if (url.pathname === '/') return send(200, 'text/html', PAGE);
     if (url.pathname !== '/api/scan') return send(404, 'text/plain', 'Not found');
@@ -24,10 +30,20 @@ export async function serve(port: number, open: (input: string) => Promise<Sourc
     }
   });
   await new Promise<void>((resolve, reject) => {
-    server.once('error', (error: NodeJS.ErrnoException) =>
-      reject(error.code === 'EADDRINUSE' ? new AtlasError(`Port ${port} is in use; try serve <port>`) : error),
-    );
-    server.listen(port, '127.0.0.1', resolve);
+    // Any listen failure, not just a port in use, becomes a clean message rather than an uncaught throw.
+    const onStartupError = (error: NodeJS.ErrnoException) =>
+      reject(
+        error.code === 'EADDRINUSE'
+          ? new AtlasError(`Port ${port} is in use; try serve <port>`)
+          : new AtlasError(`Cannot serve on 127.0.0.1:${port}: ${error.message}`),
+      );
+    server.once('error', onStartupError);
+    server.listen(port, '127.0.0.1', () => {
+      // Startup is done; a later runtime error must be logged, not swallowed by the settled promise.
+      server.removeListener('error', onStartupError);
+      server.on('error', (error) => console.error(`Skill Atlas server error: ${error.message}`));
+      resolve();
+    });
   });
   const address = server.address();
   return { url: `http://127.0.0.1:${typeof address === 'object' && address ? address.port : port}/`, server };
@@ -37,19 +53,24 @@ export async function serve(port: number, open: (input: string) => Promise<Sourc
 async function scanWithText(input: string, open: (input: string) => Promise<Source>) {
   if (!input.trim()) throw new AtlasError('Enter a GitHub URL or a directory');
   const source = await open(input.trim());
-  // The files the scan reads, kept for this answer only.
-  const texts = new Map<string, string>();
+  // The bytes the scan reads, kept for this answer only. Decoding is deferred to the few skill
+  // files actually returned, so the page's text is decoded once rather than for every file read.
+  const bytes = new Map<string, Uint8Array>();
   const result = await scan({
     ...source,
     read: async (path) => {
-      const bytes = await source.read(path);
-      if (bytes) texts.set(path, new TextDecoder().decode(bytes));
-      return bytes;
+      const read = await source.read(path);
+      if (read) bytes.set(path, read);
+      return read;
     },
   });
+  const decoder = new TextDecoder();
   return {
     repository: result.repository,
-    skills: result.skills.map((skill) => ({ ...skill, link: skillLink(result.repository, skill), text: texts.get(skill.path) ?? '' })),
+    skills: result.skills.map((skill) => {
+      const read = bytes.get(skill.path);
+      return { ...skill, link: skillLink(result.repository, skill), text: read ? decoder.decode(read) : '' };
+    }),
     warnings: result.warnings,
   };
 }
@@ -109,7 +130,11 @@ function choose(item, skill) {
   file.replaceChildren(element('h1', '', skill.path), element('pre', '', skill.text));
 }
 
+let latestScan = 0;
 async function scan(input) {
+  // Scans can overlap; only the most recent one may touch the page, so a slow earlier
+  // response cannot overwrite a newer result that no longer matches the input or the URL.
+  const token = ++latestScan;
   history.replaceState(null, '', '?repo=' + encodeURIComponent(input));
   list.replaceChildren(element('p', '', 'Scanning…'));
   file.replaceChildren();
@@ -120,6 +145,7 @@ async function scan(input) {
   } catch (error) {
     answer = { error: String(error) };
   }
+  if (token !== latestScan) return;
   if (answer.error) return list.replaceChildren(element('p', 'error', answer.error));
   const count = answer.skills.length;
   const items = element('ul');
@@ -135,7 +161,7 @@ async function scan(input) {
     item.append(link);
     if (skill.copies.length) item.append(element('div', 'copies', 'also in ' + skill.copies.join(', ')));
     item.addEventListener('click', (event) => { if (event.target !== link) choose(item, skill); });
-    item.addEventListener('keydown', (event) => { if (event.key === 'Enter') choose(item, skill); });
+    item.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target !== link) choose(item, skill); });
     items.append(item);
   }
   list.replaceChildren(element('h1', '', answer.repository.id + ' · ' + count + (count === 1 ? ' skill' : ' skills')), items);
