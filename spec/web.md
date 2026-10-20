@@ -7,9 +7,11 @@ Prints the address; it only listens on **127.0.0.1**. `GITHUB_TOKEN` works as fo
   `also in <paths>` for copies; the warnings below
 - A skill, chosen: its **SKILL.md**, the whole file as text, front matter included
 - The first skill is chosen after a scan; `?repo=<input>` in the address scans it on load
+- When scans overlap, only the latest submitted scan may update the results, chosen file or error
 - Unreachable repository, or any other error → its message, in the page
 ## API
 `GET /api/scan?repo=<input>` → JSON: `repository`, `skills` (each with its `link` and its SKILL.md `text`), `warnings`
 - An error → status 400, `{ "error": <message> }`; no `repo` → 400
 - Each scan reads the repository again: *nothing is stored*
+- A malformed request URL → status 400; the server continues accepting requests
 - Any other path → 404

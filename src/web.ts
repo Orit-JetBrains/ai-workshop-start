@@ -8,11 +8,16 @@ import { scan, type Source } from './core/scan.ts';
 /** Starts the web view on 127.0.0.1; resolves to its address once it listens. */
 export async function serve(port: number, open: (input: string) => Promise<Source>): Promise<{ url: string; server: Server }> {
   const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     const send = (status: number, type: string, body: string) => {
       response.writeHead(status, { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'no-store' });
       response.end(body);
     };
+    let url: URL;
+    try {
+      url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    } catch {
+      return send(400, 'application/json', JSON.stringify({ error: 'Invalid request URL' }));
+    }
     if (request.method !== 'GET') return send(405, 'text/plain', 'Method not allowed');
     if (url.pathname === '/') return send(200, 'text/html', PAGE);
     if (url.pathname !== '/api/scan') return send(404, 'text/plain', 'Not found');
@@ -109,7 +114,10 @@ function choose(item, skill) {
   file.replaceChildren(element('h1', '', skill.path), element('pre', '', skill.text));
 }
 
+let latestScan = 0;
+
 async function scan(input) {
+  const scanId = ++latestScan;
   history.replaceState(null, '', '?repo=' + encodeURIComponent(input));
   list.replaceChildren(element('p', '', 'Scanning…'));
   file.replaceChildren();
@@ -120,6 +128,7 @@ async function scan(input) {
   } catch (error) {
     answer = { error: String(error) };
   }
+  if (scanId !== latestScan) return;
   if (answer.error) return list.replaceChildren(element('p', 'error', answer.error));
   const count = answer.skills.length;
   const items = element('ul');
