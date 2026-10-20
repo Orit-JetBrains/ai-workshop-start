@@ -62,6 +62,19 @@ A recording that silently captured an error page is worse than no recording. Alw
 3. Describe each step in [docs/demo/README.md](../../../docs/demo/README.md), and keep the counts
    in that text (`3 of 6`, `3 of 11`) matching what the video shows.
 
+## 4. Attach it to the pull request
+
+`AGENTS.md` asks for a demo video on a pull request whose change is visible in the web view.
+Commit the MP4 under `docs/demo/` and link it in the PR body:
+
+```markdown
+[Demo](https://github.com/<owner>/<repo>/blob/<branch>/docs/demo/<file>.mp4?raw=1)
+```
+
+A file linked out of the repository this way may render as a plain link rather than as a player —
+that is enough. An inline player needs the MP4 dragged into the PR body by hand, which an agent
+cannot do; do not claim a video plays inline without having seen it do so.
+
 ## How it works, and what to keep that way
 
 - **Captions, not sound.** `record.mjs` overlays a caption strip by `page.evaluate`; the served
