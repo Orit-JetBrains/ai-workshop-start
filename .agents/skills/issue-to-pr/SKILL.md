@@ -1,12 +1,16 @@
 ---
 name: issue-to-pr
-description: Take a GitHub issue from start to merged. Read the spec, implement the issue with integration tests, open a pull request, and merge it once CI is green. Use when the user hands you an issue number or link and wants it shipped end to end.
+description: Take a GitHub issue to an open pull request with green CI. Read the spec, implement the issue with integration tests, and open a pull request for review. Use when the user hands you an issue number or link and wants it implemented and up for review.
 ---
 
 # Issue to PR
 
-Take a single GitHub issue all the way to a merged pull request: understand it,
-implement it with tests, open the PR, and merge it once checks pass.
+Take a single GitHub issue to an **open pull request with green CI**: understand
+it, implement it with tests, open the PR, and leave it open.
+
+**Never merge.** This skill ends at the open PR. Opening it triggers a separate
+code-review automation, and the review and the merge are that automation's and
+the user's to make — a PR this skill merged itself is a PR nobody could review.
 
 Follow the project's `AGENTS.md` throughout — it is the source of truth for
 specs, tests, the definition of done, and commands. If anything here conflicts
@@ -46,17 +50,19 @@ with `AGENTS.md`, `AGENTS.md` wins.
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-## 4. Merge it
+## 4. Get CI green, then hand off
 
-The definition of done requires a **green CI build**, so merge only after checks
-pass:
+The definition of done requires a **green CI build**, so the PR is not ready
+until checks pass:
 
 1. Wait for CI: `gh pr checks <pr> --watch`.
 2. If any check fails, read the logs, fix the branch, push, and re-run the
-   tests locally. Repeat until CI is green.
-3. Once all required checks pass, merge: `gh pr merge <pr> --squash --delete-branch`.
-   Prefer `--auto` if the repo requires it to merge on completion of checks.
-4. Confirm the PR is merged and the issue closed, and report that plainly.
+   tests locally. Repeat until CI is green. Never leave the PR red; never skip
+   or disable a test to get there.
+3. Report the PR link and the state of its checks plainly, and stop.
 
-Never merge on red or pending checks, and never merge a PR whose tests you had
-to skip or disable to get passing.
+**Do not merge, and do not close the issue by hand.** Do not run
+`gh pr merge` — not with `--auto` either, which merges just the same once checks
+pass. Leave the branch in place: deleting it closes the PR out from under the
+review. The PR stays open for the code-review automation that its creation
+triggers, and the user merges it.
