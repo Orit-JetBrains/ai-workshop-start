@@ -7,6 +7,7 @@ Prints the address; it only listens on **127.0.0.1**. `GITHUB_TOKEN` works as fo
 - An organization's result: `<organization> · N repositories, M with skills`, then each repository that
   **has** skills with its **count**, sorted as for `scan`; the warnings below. Choosing a repository
   **scans it**: its URL goes into the field, and its skills replace the list
+- The **filter** works on an organization's list as well: on the repositories' **names**, `<matched> of <all>`
 - The result: `<owner>/<repo> · N skills`, then each skill's **name**, **description** and **link**, sorted as for `scan`;
   `also in <paths>` for copies; the warnings below
 - A **filter** above the list: it narrows the list to the skills whose **name** or **description**
