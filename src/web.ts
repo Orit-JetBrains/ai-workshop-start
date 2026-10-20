@@ -162,19 +162,29 @@ function choose(item, skill) {
   file.replaceChildren(element('h1', '', skill.path), element('pre', '', skill.text));
 }
 
-// Every skill of the last scan, with the item showing it: the filter hides items in place rather
-// than rebuilding the list, so the skill chosen on the right stays chosen while the query narrows.
+// Every skill, or repository, of the last scan: the item showing it and the texts the filter looks
+// in. The filter hides items in place rather than rebuilding the list, so the skill chosen on the
+// right stays chosen while the query narrows.
 let rendered = [];
 
-function matches(skill, query) {
-  return skill.name.toLowerCase().includes(query) || (skill.description || '').toLowerCase().includes(query);
+function matches(entry, query) {
+  return entry.texts.some((text) => text.toLowerCase().includes(query));
+}
+
+// The filter, shown over a fresh list; what it filters is in its placeholder.
+function showFilter(what) {
+  filter.placeholder = 'Filter ' + what;
+  filter.setAttribute('aria-label', 'Filter ' + what);
+  search.hidden = false;
+  applyFilter();
 }
 
 function applyFilter() {
   const query = filter.value.trim().toLowerCase();
   let shown = 0;
-  for (const { item, skill } of rendered) {
-    const show = !query || matches(skill, query);
+  for (const entry of rendered) {
+    const { item } = entry;
+    const show = !query || matches(entry, query);
     item.hidden = !show;
     if (show) shown++;
   }
@@ -221,12 +231,11 @@ async function scan(input) {
     item.addEventListener('click', (event) => { if (event.target !== link) choose(item, skill); });
     item.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target !== link) choose(item, skill); });
     items.append(item);
-    rendered.push({ item, skill });
+    rendered.push({ item, texts: [skill.name, skill.description || ''] });
   }
   results.replaceChildren(element('h1', '', answer.repository.id + ' · ' + total + (total === 1 ? ' skill' : ' skills')), items);
   showWarnings(answer.warnings);
-  search.hidden = false;
-  applyFilter();
+  showFilter('skills');
   const first = items.querySelector('li.skill');
   if (first) choose(first, answer.skills[0]);
 }
@@ -256,10 +265,12 @@ function showOrganization(answer) {
     item.addEventListener('click', open);
     item.addEventListener('keydown', (event) => { if (event.key === 'Enter') open(); });
     items.append(item);
+    rendered.push({ item, texts: [repository.name] });
   }
   const heading = answer.organization + ' · ' + total + (total === 1 ? ' repository' : ' repositories') + ', ' + answer.withSkills.length + ' with skills';
   results.replaceChildren(element('h1', '', heading), items);
   showWarnings(answer.warnings);
+  showFilter('repositories');
   if (answer.withSkills.length) file.replaceChildren(element('p', 'hint', 'Choose a repository to see its skills.'));
 }
 
