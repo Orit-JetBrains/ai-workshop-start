@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree — or auto-merge the PR when the review is clean.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; auto-merge only a clean PR with every thread addressed.
 ---
 
 # Code review
@@ -41,14 +41,27 @@ After the comments are written, apply each suggested fix to the working tree:
 3. When done, show the resulting diff and run the project's tests/build so the
    changes are verified, not just written.
 
-## When the review is clean
+## Merging
+
+Never merge — or enable auto-merge on — a pull request while any review comment
+is unaddressed. Before merging, list the PR's review threads and confirm every
+one is resolved: fixed by a pushed commit, or explicitly dismissed with a reply
+saying why it is not a defect. Treat an open, unanswered thread as blocking,
+including comments from earlier reviewers and bots, not just your own.
+
+```bash
+# Unresolved threads must be empty before any merge.
+gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' \
+  -F o=<owner> -F r=<repo> -F n=<pr> --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved|not)]|length'
+```
 
 If the review finds nothing to fix:
 
-- When the target is a pull request, enable auto-merge on it
-  (`gh pr merge --auto --squash <pr>`) so it merges once required checks pass,
-  and say that you did.
-- Otherwise just say the review is clean in one line and stop.
+- When the target is a pull request **and every review thread is resolved**,
+  enable auto-merge on it (`gh pr merge --auto --squash <pr>`) so it merges once
+  required checks pass, and say that you did.
+- If any thread is still open, do not merge: list what is unresolved and stop.
+- Otherwise (not a PR) just say the review is clean in one line and stop.
 
 Only auto-merge on a genuinely empty review — never when a finding was merely
-skipped as too risky to fix.
+skipped as too risky to fix, and never while comments remain unaddressed.
