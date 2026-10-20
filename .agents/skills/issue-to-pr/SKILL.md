@@ -6,7 +6,8 @@ description: Take a GitHub issue to an open pull request with green CI. Read the
 # Issue to PR
 
 Take a single GitHub issue to an **open pull request with green CI**: understand
-it, implement it with tests, open the PR, and leave it open.
+it, implement it with tests, open the PR, leave it open, and keep checking back
+on it every few minutes until it is merged or closed.
 
 **Never merge.** This skill ends at the open PR. Opening it triggers a separate
 code-review automation, and the review and the merge are that automation's and
@@ -50,7 +51,7 @@ with `AGENTS.md`, `AGENTS.md` wins.
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-## 4. Get CI green, then hand off
+## 4. Get CI green
 
 The definition of done requires a **green CI build**, so the PR is not ready
 until checks pass:
@@ -59,7 +60,32 @@ until checks pass:
 2. If any check fails, read the logs, fix the branch, push, and re-run the
    tests locally. Repeat until CI is green. Never leave the PR red; never skip
    or disable a test to get there.
-3. Report the PR link and the state of its checks plainly, and stop.
+3. Report the PR link and the state of its checks plainly.
+
+## 5. Watch the PR every few minutes
+
+Once the PR is open, keep checking back on it every few minutes rather than
+walking away — the code-review automation posts asynchronously and CI can go
+red on a later run.
+
+1. Each round, read the current state:
+   `gh pr view <pr> --json state,mergeStateStatus,reviewDecision` and
+   `gh pr checks <pr>`, plus
+   `gh pr view <pr> --comments` for review feedback.
+2. Act on what you find:
+   - **Review comments** — address them: fix the code, run `npm test`, push.
+     Reply on the thread saying what changed. Push back politely with reasoning
+     if a comment is wrong, rather than making a change you believe is wrong.
+   - **A red check** — treat it exactly as in step 4: read the logs, fix, push.
+   - **Nothing new** — say so briefly and check again later.
+3. Between rounds, wait a few minutes — don't busy-poll. Use `ScheduleWakeup`
+   with a `delaySeconds` of 120–270 while actively waiting on CI or a review,
+   and stretch to 1200+ once the PR has been quiet for a while.
+4. Stop watching when the PR is merged or closed, or when the user says to
+   stop. Report the final state.
+
+**Still never merge** — watching the PR does not become permission to close it
+out. Reviews and the merge stay the automation's and the user's.
 
 **Do not merge, and do not close the issue by hand.** Do not run
 `gh pr merge` — not with `--auto` either, which merges just the same once checks
