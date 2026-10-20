@@ -12,4 +12,4 @@ Prints the address; it only listens on **127.0.0.1**. `GITHUB_TOKEN` works as fo
 `GET /api/scan?repo=<input>` → JSON: `repository`, `skills` (each with its `link` and its SKILL.md `text`), `warnings`
 - An error → status 400, `{ "error": <message> }`; no `repo` → 400
 - Each scan reads the repository again: *nothing is stored*
-- Any other path → 404
+- Any other path → 404; a malformed request target → 400, and the server keeps serving

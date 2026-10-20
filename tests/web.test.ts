@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import net from 'node:net';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -93,6 +94,24 @@ test('unreachable repository, or no repository → its message, status 400', asy
 
 test('any other path → 404', async () => {
   assert.equal((await get('/nope')).status, 404);
+});
+
+test('a malformed request URL → 400, and the server stays up', async () => {
+  const { hostname, port } = new URL(address);
+  // A request target that URL parsing rejects, sent raw so fetch cannot normalise it.
+  const status = await new Promise<string>((resolve, reject) => {
+    const socket = net.connect(Number(port), hostname, () => {
+      socket.write('GET //[/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n');
+    });
+    let data = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => (data += chunk));
+    socket.on('end', () => resolve(data.split('\r\n', 1)[0]));
+    socket.on('error', reject);
+  });
+  assert.match(status, /^HTTP\/1\.1 400\b/);
+  // The process did not crash: it still answers normal requests.
+  assert.equal((await get('/')).status, 200);
 });
 
 test('nothing is stored: each scan reads the repository again', async () => {
