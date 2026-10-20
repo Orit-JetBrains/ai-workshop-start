@@ -1,6 +1,10 @@
 // The page's behaviour, not just the HTML it is served as: a DOM small enough to run the page's own
 // inline script under `node:vm`, with its `fetch` pointed at a really running `skill-atlas serve`.
 // Only what the script touches is implemented; anything else it reaches for is a plain failure.
+//
+// There is no stylesheet here: `hidden` is the property the script sets, not what a browser paints.
+// A page whose CSS overrides `[hidden]` still looks hidden to this DOM, so whether an element is
+// really off screen belongs in a test over the served CSS, not here.
 import { createContext, runInContext } from 'node:vm';
 
 /** One element of the tiny DOM: what the page's script does to a node, and nothing more. */
