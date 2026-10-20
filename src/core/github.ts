@@ -9,7 +9,12 @@ export type GitHubOptions = {
   fetch: Fetch;
   /** With a token, the SKILL.md files outside the skill roots are found through code search; without it, through the tree. */
   token?: string;
+  /** Waits out a secondary rate limit; a timer by default, so tests can skip the wait. */
+  wait?: (ms: number) => Promise<void>;
 };
+
+/** How often one request waits out a secondary rate limit before the scan gives up. */
+const RETRIES = 3;
 
 const API = 'https://api.github.com';
 const RAW = 'https://raw.githubusercontent.com';
@@ -168,7 +173,7 @@ function files(tree: Tree): string[] {
 
 type Client = ReturnType<typeof client>;
 
-function client({ fetch, token }: GitHubOptions) {
+function client({ fetch, token, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }: GitHubOptions) {
   const headers: Record<string, string> = { Accept: 'application/vnd.github+json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const answers = new Map<string, Promise<unknown>>(); // the root tree is asked for once per skill root
@@ -181,7 +186,12 @@ function client({ fetch, token }: GitHubOptions) {
     }
   }
 
-  async function request(url: string, notFound: string): Promise<unknown> {
+  // A secondary rate limit pauses every request of the scan, not just the one it answered: they
+  // all count against the same limit, and each retrying on its own would only hit it again.
+  let pause: Promise<void> | undefined;
+
+  async function request(url: string, notFound: string, retries = RETRIES): Promise<unknown> {
+    while (pause) await pause;
     const response = await get(url, { headers });
     if (response.ok) return response.json();
     const body: unknown = await response.json().catch(() => undefined);
@@ -189,6 +199,13 @@ function client({ fetch, token }: GitHubOptions) {
     const text = typeof message === 'string' ? message : '';
     if (response.status === 404) throw new AtlasError(notFound);
     if ((response.status === 403 || response.status === 429) && /rate limit/i.test(text)) {
+      // The hour's requests are spent only when none remain; anything else is a secondary limit,
+      // on how fast they come, which GitHub lifts after the wait it names.
+      const delay = response.headers.get('x-ratelimit-remaining') === '0' ? undefined : secondsToWait(response) * 1000;
+      if (delay !== undefined && retries > 0) {
+        pause ??= wait(delay).finally(() => (pause = undefined));
+        return request(url, notFound, retries - 1);
+      }
       throw new AtlasError(`GitHub rate limit reached; ${token ? 'try again in a minute' : 'set GITHUB_TOKEN'}`);
     }
     if (response.status === 401) throw new AtlasError('GitHub rejected the token in GITHUB_TOKEN');
@@ -209,6 +226,12 @@ function client({ fetch, token }: GitHubOptions) {
       return new Uint8Array(await response.arrayBuffer());
     },
   };
+}
+
+/** What GitHub asks for in `retry-after`; a minute, as its documentation says, when it names none. */
+function secondsToWait(response: Response): number {
+  const seconds = Number(response.headers.get('retry-after'));
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 60;
 }
 
 function encodePath(path: string): string {

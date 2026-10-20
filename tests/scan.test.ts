@@ -304,6 +304,7 @@ test('rate limit → a message that asks for GITHUB_TOKEN', async () => {
     'https://api.github.com/repos/JetBrains/MPS': {
       status: 403,
       body: { message: 'API rate limit exceeded for 192.0.2.1. (But here is the good news: ...)' },
+      headers: { 'x-ratelimit-remaining': '0' },
     },
   });
   await assert.rejects(openGitHub('https://github.com/JetBrains/MPS', { fetch: limited }), {

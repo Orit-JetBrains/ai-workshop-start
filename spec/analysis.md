@@ -35,7 +35,8 @@ organization — or of a **user account**, as both are listed — and how many p
 - A `SKILL.md` *outside* a skill root is **not** flagged here: finding one takes the whole tree of every repository
 - `GITHUB_TOKEN` is **required**: without it GitHub allows 60 requests an hour → a clear message, exit code 1
 - An unreachable organization or user → a clear message, exit code 1
-- A repository GitHub fails to answer, an *empty* one say → a *warning*, the scan goes on; a *rate limit* ends it
+- A repository GitHub fails to answer, an *empty* one say → a *warning*, the scan goes on; a *rate limit* ends it,
+  unless it is a secondary one, waited out as in [Rate limits](#rate-limits)
 - At most **8 repositories at a time**
 - The web view scans an organization too, and a repository chosen from it
 ## Details
@@ -52,3 +53,8 @@ organization — or of a **user account**, as both are listed — and how many p
 - Listed but not readable at the scanned commit → a *warning*, skipped
 - No project skills → `· 0 skills`, exit code 0
 - Unreachable repository → a clear message, exit code 1
+## Rate limits
+- The **hour's requests spent** (`x-ratelimit-remaining: 0`) → the scan ends: a clear message, exit code 1
+- A **secondary** rate limit, on how *fast* requests come, as an organization's scan can hit →
+  *every* request of the scan pauses for the wait GitHub names in `retry-after`, else *a minute*, then goes on
+- One request paused **three** times and still limited → the scan ends, as for the hour's requests
