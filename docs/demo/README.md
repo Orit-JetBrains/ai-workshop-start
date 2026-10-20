@@ -21,3 +21,18 @@ bundled fonts, and records each run as a video and a trace. See [spec/demo.md](.
 
 See [spec/web.md](../../spec/web.md) for what the page is specified to do, and
 [spec/analysis.md](../../spec/analysis.md) for the organization rules.
+
+## Recording another one
+
+This take is the `organization-and-filter` case of the
+[demo-video](../../.agents/skills/demo-video/SKILL.md) skill:
+
+```console
+$ .agents/skills/demo-video/scripts/setup.sh                              # once per machine
+$ node .agents/skills/demo-video/scripts/record.mjs --list
+$ node .agents/skills/demo-video/scripts/record.mjs organization-and-filter \
+    --out docs/demo/skill-atlas-demo.mp4
+```
+
+Other prepared cases cover the organization scan alone, a single repository, and the error path;
+`--set organization=… --set repository=…` points any of them at another account.
