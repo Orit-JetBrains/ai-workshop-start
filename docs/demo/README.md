@@ -15,5 +15,9 @@ What it shows, in order:
    description.
 5. **A skill chosen** — its SKILL.md, the whole file, front matter included.
 
+Every step above is also a test: `npm run test:demo` replays this walkthrough in a browser against a
+real `skill-atlas serve`, over a recording of the same scan, in the same 1280×760 window with
+bundled fonts, and records each run as a video and a trace. See [spec/demo.md](../../spec/demo.md).
+
 See [spec/web.md](../../spec/web.md) for what the page is specified to do, and
 [spec/analysis.md](../../spec/analysis.md) for the organization rules.

@@ -20,8 +20,25 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The demo's tests run in a browser, and record the run: Chromium, and the ffmpeg that writes
+      # the videos. The run id names the directory they are kept in.
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium ffmpeg
       - run: npm run typecheck
       - run: npm test
+        env:
+          DEMO_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      # Every run of the demo's tests, passed or failed: the videos, the traces and the screenshots.
+      - name: Keep the recording
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-run-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 30
       # The real CLI on the fixture repository, as a user would run it: it must exit 0.
       - name: Smoke test
         run: |
