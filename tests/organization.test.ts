@@ -130,14 +130,86 @@ test('a repository GitHub fails to answer → a warning, and the others are stil
   );
 });
 
-test('a rate limit ends the scan: a message, exit code 1', async () => {
-  const scanned = await atlas({
-    ...account('JetBrains', 'Organization', ['kotlin']),
-    [`${API}/repos/JetBrains/kotlin/commits/main`]: { status: 403, body: { message: 'API rate limit exceeded for 192.0.2.1.' } },
-  });
+test('the hour\'s requests spent: the scan ends, a message, exit code 1, and no wait', async () => {
+  const waits: number[] = [];
+  const scanned = await atlas(
+    {
+      ...account('JetBrains', 'Organization', ['kotlin']),
+      [`${API}/repos/JetBrains/kotlin/commits/main`]: { ...LIMITED, headers: { 'x-ratelimit-remaining': '0' } },
+    },
+    { waits },
+  );
   assert.equal(scanned.code, 1);
   assert.equal(scanned.stdout, '');
   assert.equal(scanned.stderr, 'GitHub rate limit reached; try again in a minute');
+  assert.deepEqual(waits, []);
+});
+
+test('a secondary rate limit: the wait GitHub names in retry-after, then the scan goes on', async () => {
+  const waits: number[] = [];
+  const scanned = await atlas(
+    {
+      ...account('JetBrains', 'Organization', ['kotlin']),
+      ...repository('JetBrains/kotlin', ['.claude/skills/a/SKILL.md']),
+      [`${API}/repos/JetBrains/kotlin/commits/main`]: [
+        { ...LIMITED, headers: { 'retry-after': '7', 'x-ratelimit-remaining': '4000' } },
+        { status: 200, body: { sha: 'sha-JetBrains-kotlin' } },
+      ],
+    },
+    { waits },
+  );
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.equal(scanned.stdout, 'JetBrains · 1 repository, 1 with skills\nkotlin · 1 skill');
+  assert.equal(scanned.stderr, '');
+  assert.deepEqual(waits, [7000]);
+});
+
+test('a secondary rate limit that names no wait, a 429 say: a minute', async () => {
+  const waits: number[] = [];
+  const scanned = await atlas(
+    {
+      ...account('JetBrains', 'Organization', ['kotlin']),
+      ...repository('JetBrains/kotlin', ['.claude/skills/a/SKILL.md']),
+      [`${API}/repos/JetBrains/kotlin/commits/main`]: [
+        { status: 429, body: { message: 'You have exceeded a secondary rate limit.' } },
+        { status: 200, body: { sha: 'sha-JetBrains-kotlin' } },
+      ],
+    },
+    { waits },
+  );
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.deepEqual(waits, [60_000]);
+});
+
+test('a secondary rate limit pauses every request of the scan once, not each request on its own', async () => {
+  const waits: number[] = [];
+  const names = ['a', 'b', 'c', 'd'];
+  const recording: Recording = account('JetBrains', 'Organization', names);
+  for (const name of names) {
+    Object.assign(recording, repository(`JetBrains/${name}`, [`.claude/skills/${name}/SKILL.md`]));
+    recording[`${API}/repos/JetBrains/${name}/commits/main`] = [
+      { ...LIMITED, headers: { 'retry-after': '5' } },
+      { status: 200, body: { sha: `sha-JetBrains-${name}` } },
+    ];
+  }
+  const scanned = await atlas(recording, { waits });
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.match(scanned.stdout, /^JetBrains · 4 repositories, 4 with skills$/m);
+  assert.deepEqual(waits, [5000]);
+});
+
+test('a secondary rate limit that does not lift: three waits, then the message, exit code 1', async () => {
+  const waits: number[] = [];
+  const scanned = await atlas(
+    {
+      ...account('JetBrains', 'Organization', ['kotlin']),
+      [`${API}/repos/JetBrains/kotlin/commits/main`]: { ...LIMITED, headers: { 'retry-after': '2' } },
+    },
+    { waits },
+  );
+  assert.equal(scanned.code, 1);
+  assert.equal(scanned.stderr, 'GitHub rate limit reached; try again in a minute');
+  assert.deepEqual(waits, [2000, 2000, 2000]);
 });
 
 test('an organization or user that does not exist → a clear message, exit code 1', async () => {
@@ -193,17 +265,22 @@ function repository(id: string, paths: string[], truncated: string[] = []): Reco
 }
 
 /** `skill-atlas scan github.com/<organization>`, with GitHub answering from the recording. */
-async function atlas(recording: Recording, options: { input?: string; token?: string } = {}) {
+async function atlas(recording: Recording, options: { input?: string; token?: string; waits?: number[] } = {}) {
   // An empty token is no token, as the CLI reads GITHUB_TOKEN.
-  const { input = 'github.com/JetBrains', token = 'test' } = options;
+  const { input = 'github.com/JetBrains', token = 'test', waits = [] } = options;
+  // A rate limit's wait, noted and skipped, after a turn of the event loop as a timer would.
+  const wait = (ms: number) => (waits.push(ms), new Promise<void>((resolve) => setTimeout(resolve, 0)));
   const stdout: string[] = [];
   const stderr: string[] = [];
   const fetch = replay(recording);
   const code = await run(['scan', input], {
     open: () => Promise.reject(new Error(`a repository was opened for ${input}`)),
-    openOrganization: (organization) => openOrganization(organization, { fetch, token: token || undefined }),
+    openOrganization: (organization) => openOrganization(organization, { fetch, token: token || undefined, wait }),
     print: (text) => stdout.push(text),
     error: (text) => stderr.push(text),
   });
   return { code, stdout: stdout.join('\n'), stderr: stderr.join('\n') };
 }
+
+/** What GitHub answers when a request is over a rate limit; the headers say which one. */
+const LIMITED = { status: 403, body: { message: 'API rate limit exceeded for 192.0.2.1.' } };
