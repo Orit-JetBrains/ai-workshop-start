@@ -31,5 +31,15 @@ Each is one test, and all five again as one, end to end — the video's order:
 4. **The filter, on the skills.** `issue` → `3 of 11`: issue-create, issue-triage, and pr-flow on its description
 5. **A skill chosen** → its SKILL.md, the whole file, front matter included; the first skill is chosen by the scan
 Two more hold the run itself to the spec: the viewport and the fonts are the demo's, and a reload
-starts from an empty page. Screenshots are kept as a record, not compared against checked-in images:
-they are identical for a given browser build, not across them.
+starts from an empty page.
+## Screenshots
+Each of the five steps ends with its screen **compared** with a checked-in image, `tests/demo/screenshots/<step>.png`:
+`1-organization`, `2-organization-filtered`, `3-repository`, `4-skills-filtered`, `5-skill`
+- The images are **CI's**: Linux, and the Chromium the workflow installs. They are identical for a given
+  browser build, not across them, so **only CI compares**; elsewhere the comparison is skipped
+- On CI, a screen that differs from its image, or a step with no image, **fails** the run. Its artifact holds
+  the *expected*, *actual* and *diff* images, and the HTML report shows them side by side
+- **Accepting** a change: label the pull request `accept screenshots`. The *Accept screenshots* workflow renders
+  the screens again on CI, commits the ones that changed, or had no image, to the pull request's branch, runs CI on
+  that commit, and takes the label off. A step that fails for any other reason commits nothing
+- Only a pull request from this repository's own branches: a fork's code never runs with a token that can push

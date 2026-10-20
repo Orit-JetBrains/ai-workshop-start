@@ -40,7 +40,7 @@ test('the window and the fonts the demo was recorded in', async ({ atlas, page }
   await expect(atlas.repository).toHaveCSS('font-family', new RegExp(SANS));
 });
 
-test('1 · the organization scan', async ({ atlas }) => {
+test('1 · the organization scan', async ({ atlas, page }) => {
   await atlas.scan(ORGANIZATION);
   await expect(atlas.heading).toHaveText('modelcontextprotocol · 45 repositories, 6 with skills');
   await expect(atlas.repositories()).toHaveCount(6);
@@ -48,21 +48,23 @@ test('1 · the organization scan', async ({ atlas }) => {
   await expect(atlas.repositories().locator('.description')).toHaveText(COUNTS);
   // Nothing is chosen yet: the right side says what to do.
   await expect(atlas.file).toHaveText('Choose a repository to see its skills.');
+  await expect(page).toHaveScreenshot('1-organization.png');
 });
 
-test("2 · the filter, on an organization's list", async ({ atlas }) => {
+test("2 · the filter, on an organization's list", async ({ atlas, page }) => {
   await atlas.scan(ORGANIZATION);
   await expect(atlas.count).toHaveText('6 of 6');
   await atlas.type('sdk');
   await expect(atlas.count).toHaveText('3 of 6');
   expect(await atlas.names(atlas.repositories())).toEqual(['csharp-sdk', 'kotlin-sdk', 'python-sdk']);
+  await expect(page).toHaveScreenshot('2-organization-filtered.png');
   // Emptying the field restores the list.
   await atlas.clearFilter();
   await expect(atlas.count).toHaveText('6 of 6');
   expect(await atlas.names(atlas.repositories())).toEqual(WITH_SKILLS);
 });
 
-test('3 · a repository chosen from the organization', async ({ atlas }) => {
+test('3 · a repository chosen from the organization', async ({ atlas, page }) => {
   await atlas.scan(ORGANIZATION);
   await atlas.repositories().filter({ hasText: 'inspector' }).click();
   // Its URL goes into the field, and its skills replace the list.
@@ -77,20 +79,22 @@ test('3 · a repository chosen from the organization', async ({ atlas }) => {
   // A scan empties the filter.
   await expect(atlas.filter).toHaveValue('');
   await expect(atlas.count).toHaveText('11 of 11');
+  await expect(page).toHaveScreenshot('3-repository.png');
 });
 
-test('4 · the filter, on the skills', async ({ atlas }) => {
+test('4 · the filter, on the skills', async ({ atlas, page }) => {
   await atlas.scan(REPOSITORY);
   await atlas.type('issue');
   await expect(atlas.count).toHaveText('3 of 11');
   // The name or the description: pr-flow matches on its description alone.
   expect(await atlas.names(atlas.skills())).toEqual(['issue-create', 'issue-triage', 'pr-flow']);
   await expect(atlas.skills().filter({ hasText: 'pr-flow' }).locator('.description')).toContainText('issue');
+  await expect(page).toHaveScreenshot('4-skills-filtered.png');
   await atlas.clearFilter();
   await expect(atlas.count).toHaveText('11 of 11');
 });
 
-test('5 · a skill chosen, its SKILL.md', async ({ atlas }) => {
+test('5 · a skill chosen, its SKILL.md', async ({ atlas, page }) => {
   await atlas.scan(REPOSITORY);
   // The first skill is chosen by the scan itself.
   expect(await atlas.chosen()).toMatchObject({ path: '.claude/skills/board-ops/SKILL.md' });
@@ -102,6 +106,7 @@ test('5 · a skill chosen, its SKILL.md', async ({ atlas }) => {
   expect(chosen.text).toContain('name: issue-triage');
   expect(chosen.text).toContain('description: Triage unboarded Inspector issues');
   expect(chosen.text.length).toBeGreaterThan(1000);
+  await expect(page).toHaveScreenshot('5-skill.png');
 });
 
 // The demo itself, in one go: the five steps in their order, so one video shows what the mp4 shows.

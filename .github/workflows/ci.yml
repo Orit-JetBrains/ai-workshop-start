@@ -4,6 +4,8 @@ name: CI
 on:
   push:
   pull_request:
+  # Started by the Accept screenshots workflow, on the commit it pushed.
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
