@@ -12,5 +12,7 @@
     "allowJs": true,
     "skipLibCheck": true
   },
-  "include": ["src", "scripts", "tests"]
+  "include": ["src", "scripts", "tests"],
+  // The demo's Playwright tests run in a browser as well as in Node: tests/demo/tsconfig.json.
+  "exclude": ["tests/demo"]
 }

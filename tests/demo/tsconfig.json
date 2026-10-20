@@ -1,0 +1,10 @@
+{
+  // The demo's tests, and the Playwright config they share: Node, plus the page's own DOM, which
+  // the rest of the project never touches.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["esnext", "dom", "dom.iterable"]
+  },
+  "include": [".", "../../playwright.config.ts"],
+  "exclude": []
+}
