@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree — or auto-merge the PR when the review is clean.
 ---
 
 # Code review
@@ -41,4 +41,14 @@ After the comments are written, apply each suggested fix to the working tree:
 3. When done, show the resulting diff and run the project's tests/build so the
    changes are verified, not just written.
 
-If nothing is wrong, say so in one line and stop.
+## When the review is clean
+
+If the review finds nothing to fix:
+
+- When the target is a pull request, enable auto-merge on it
+  (`gh pr merge --auto --squash <pr>`) so it merges once required checks pass,
+  and say that you did.
+- Otherwise just say the review is clean in one line and stop.
+
+Only auto-merge on a genuinely empty review — never when a finding was merely
+skipped as too risky to fix.
