@@ -12,6 +12,7 @@ import { replay } from '../src/core/replay.ts';
 import { openDirectory } from '../src/local.ts';
 import { serve } from '../src/web.ts';
 import { CLI, EXAMPLE_COMMIT, FIXTURE, trees } from './helpers.ts';
+import { openPage } from './page.ts';
 
 type Answer = {
   repository: { id: string };
@@ -54,6 +55,85 @@ test('the page: a field for the repository and a Scan button', async () => {
   assert.match(page.body, /<input id="repo" name="repo"[^>]*>/);
   assert.match(page.body, /<button>Scan<\/button>/);
   assert.match(page.body, /new URLSearchParams\(location\.search\)\.get\('repo'\)/);
+});
+
+// The filter, driven on the page's own script against the really running server. ./fixture has six
+// skills: code-style, commits, deploy, release-checklist and review twice.
+const ALL = ['code-style', 'commits', 'deploy', 'release-checklist', 'review', 'review'];
+
+test('the page: a filter above the skills list, shown once a scan has drawn one', async () => {
+  const page = await openPage(address);
+  assert.equal(page.filterShown(), false, 'nothing to filter before a scan');
+  await page.scan(FIXTURE);
+  assert.equal(page.filterShown(), true);
+  assert.deepEqual(page.visible(), ALL);
+  assert.equal(page.count(), '6 of 6');
+});
+
+test('typing filters the list to the skills whose name or description matches', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  // `commits` by its name and its description; `code-style` by "committing" in its description only.
+  page.type('commit');
+  assert.deepEqual(page.visible(), ['code-style', 'commits']);
+  // Both `review` skills by "before it is merged" in their descriptions alone, nothing in a name.
+  page.type('merged');
+  assert.deepEqual(page.visible(), ['review', 'review']);
+});
+
+test('matching is substring-based, anywhere in the name or the description', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  // In the middle of `deploy`, so a match on the start of the name alone would miss it.
+  page.type('epl');
+  assert.deepEqual(page.visible(), ['deploy']);
+  page.type('zzz');
+  assert.deepEqual(page.visible(), []);
+});
+
+test('matching is case-insensitive', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  page.type('REVIEW');
+  assert.deepEqual(page.visible(), ['review', 'review']);
+  page.type('Kotlin');
+  assert.deepEqual(page.visible(), ['code-style']);
+});
+
+test('the count is the matches against the whole list', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  page.type('review');
+  assert.equal(page.count(), '2 of 6');
+  page.type('Kotlin');
+  assert.equal(page.count(), '1 of 6');
+  page.type('zzz');
+  assert.equal(page.count(), '0 of 6');
+});
+
+test('emptying the filter restores the whole list; a scan empties the filter', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  page.type('review');
+  assert.deepEqual(page.visible(), ['review', 'review']);
+  page.type('');
+  assert.deepEqual(page.visible(), ALL);
+  assert.equal(page.count(), '6 of 6');
+  // A query says nothing about the skills of the next repository, so a scan starts from them all.
+  page.type('review');
+  await page.scan(FIXTURE);
+  assert.equal(page.query(), '');
+  assert.deepEqual(page.visible(), ALL);
+  assert.equal(page.count(), '6 of 6');
+});
+
+test('the skill chosen on the right stays chosen while the query narrows the list', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  // The first skill is chosen after a scan; filtering it away does not choose another one.
+  assert.equal(page.chosen(), 'code-style');
+  page.type('review');
+  assert.equal(page.chosen(), 'code-style');
 });
 
 test('a local directory: every project skill sorted as for scan, with its link, copies and SKILL.md', async () => {

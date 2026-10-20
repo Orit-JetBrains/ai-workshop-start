@@ -90,6 +90,9 @@ const PAGE = `<!doctype html>
   main { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; min-height: 0; }
   #list, #file { overflow: auto; padding: 1rem; min-height: 0; }
   #list { border-right: 1px solid #8884; }
+  #search { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+  #search input { flex: 1; min-width: 0; font: inherit; padding: .3rem .5rem; }
+  #count { font-size: .85rem; opacity: .8; white-space: nowrap; }
   h1 { font-size: 1.1rem; margin: 0 0 .75rem; }
   ul { list-style: none; margin: 0; padding: 0; }
   li.skill { padding: .5rem; border-radius: 6px; cursor: pointer; }
@@ -109,11 +112,20 @@ const PAGE = `<!doctype html>
   <button>Scan</button>
 </form>
 <main>
-  <section id="list"></section>
+  <section id="list">
+    <div id="search" hidden>
+      <input id="filter" type="search" placeholder="Filter skills" aria-label="Filter skills">
+      <span id="count"></span>
+    </div>
+    <div id="results"></div>
+  </section>
   <section id="file"></section>
 </main>
 <script>
-const list = document.getElementById('list');
+const results = document.getElementById('results');
+const search = document.getElementById('search');
+const filter = document.getElementById('filter');
+const count = document.getElementById('count');
 const file = document.getElementById('file');
 const repo = document.getElementById('repo');
 
@@ -125,10 +137,31 @@ function element(tag, className, text) {
 }
 
 function choose(item, skill) {
-  for (const other of list.querySelectorAll('li.skill')) other.setAttribute('aria-selected', 'false');
+  for (const other of results.querySelectorAll('li.skill')) other.setAttribute('aria-selected', 'false');
   item.setAttribute('aria-selected', 'true');
   file.replaceChildren(element('h1', '', skill.path), element('pre', '', skill.text));
 }
+
+// Every skill of the last scan, with the item showing it: the filter hides items in place rather
+// than rebuilding the list, so the skill chosen on the right stays chosen while the query narrows.
+let rendered = [];
+
+function matches(skill, query) {
+  return skill.name.toLowerCase().includes(query) || (skill.description || '').toLowerCase().includes(query);
+}
+
+function applyFilter() {
+  const query = filter.value.trim().toLowerCase();
+  let shown = 0;
+  for (const { item, skill } of rendered) {
+    const show = !query || matches(skill, query);
+    item.hidden = !show;
+    if (show) shown++;
+  }
+  count.textContent = shown + ' of ' + rendered.length;
+}
+
+filter.addEventListener('input', applyFilter);
 
 let latestScan = 0;
 async function scan(input) {
@@ -136,8 +169,12 @@ async function scan(input) {
   // response cannot overwrite a newer result that no longer matches the input or the URL.
   const token = ++latestScan;
   history.replaceState(null, '', '?repo=' + encodeURIComponent(input));
-  list.replaceChildren(element('p', '', 'Scanning…'));
+  results.replaceChildren(element('p', '', 'Scanning…'));
   file.replaceChildren();
+  // A scan starts from the whole list again: the previous query says nothing about these skills.
+  rendered = [];
+  filter.value = '';
+  search.hidden = true;
   let answer;
   try {
     const response = await fetch('/api/scan?repo=' + encodeURIComponent(input));
@@ -146,8 +183,8 @@ async function scan(input) {
     answer = { error: String(error) };
   }
   if (token !== latestScan) return;
-  if (answer.error) return list.replaceChildren(element('p', 'error', answer.error));
-  const count = answer.skills.length;
+  if (answer.error) return results.replaceChildren(element('p', 'error', answer.error));
+  const total = answer.skills.length;
   const items = element('ul');
   for (const skill of answer.skills) {
     const item = element('li', 'skill');
@@ -163,13 +200,16 @@ async function scan(input) {
     item.addEventListener('click', (event) => { if (event.target !== link) choose(item, skill); });
     item.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target !== link) choose(item, skill); });
     items.append(item);
+    rendered.push({ item, skill });
   }
-  list.replaceChildren(element('h1', '', answer.repository.id + ' · ' + count + (count === 1 ? ' skill' : ' skills')), items);
+  results.replaceChildren(element('h1', '', answer.repository.id + ' · ' + total + (total === 1 ? ' skill' : ' skills')), items);
   if (answer.warnings.length) {
     const warnings = element('ul', 'warnings');
     for (const warning of answer.warnings) warnings.append(element('li', '', 'warning: ' + warning));
-    list.append(warnings);
+    results.append(warnings);
   }
+  search.hidden = false;
+  applyFilter();
   const first = items.querySelector('li.skill');
   if (first) choose(first, answer.skills[0]);
 }
