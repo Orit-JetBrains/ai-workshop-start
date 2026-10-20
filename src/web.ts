@@ -90,7 +90,7 @@ const PAGE = `<!doctype html>
   main { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; min-height: 0; }
   #list, #file { overflow: auto; padding: 1rem; min-height: 0; }
   #list { border-right: 1px solid #8884; }
-  #search { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+  #search:not([hidden]) { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
   #search input { flex: 1; min-width: 0; font: inherit; padding: .3rem .5rem; }
   #count { font-size: .85rem; opacity: .8; white-space: nowrap; }
   h1 { font-size: 1.1rem; margin: 0 0 .75rem; }
