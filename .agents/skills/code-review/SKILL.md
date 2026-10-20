@@ -45,8 +45,9 @@ After the comments are written, apply each suggested fix to the working tree:
 A fix that stays in a local tree is a fix nobody receives, and the PR still
 carries the bug the comment describes. So finish each finding on the PR itself:
 
-4. Check out the PR branch before editing (`gh pr checkout <pr>`), so the fixes
-   land on the branch under review and not on a detached tree or on `main`.
+4. Before steps 1–3, check out the PR branch (`gh pr checkout <pr>`) so the
+   edits land on the branch under review and not on a detached tree or on
+   `main`.
 5. Commit the applied fixes and push them to the PR branch.
 6. Reply on each comment's thread saying which commit fixed it, then resolve the
    thread. A thread you skipped in step 2 gets a reply saying why, and stays
