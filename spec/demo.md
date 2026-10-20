@@ -30,11 +30,20 @@ Each is one test, and all five again as one, end to end — the video's order:
    list, each with its name, description and link; the filter emptied
 4. **The filter, on the skills.** `issue` → `3 of 11`: issue-create, issue-triage, and pr-flow on its description
 5. **A skill chosen** → its SKILL.md, the whole file, front matter included; the first skill is chosen by the scan
-Two more hold the run itself to the spec: the viewport and the fonts are the demo's, and a reload
-starts from an empty page.
+Two screens the video does not show, because nothing happens in them, are screenshotted too:
+**before a scan** — the top bar, an empty list, no count — and an **unreachable repository**,
+`github.com/modelcontextprotocol/does-not-exist`, whose 404 is recorded like any other answer:
+`Repository not found: <url>` in the page, and still nothing to count
+Three more hold the run itself to the spec: the viewport and the fonts are the demo's, a reload
+starts from an empty page, and **one changed pixel fails the comparison** — a single pixel painted
+over step 1's screen must fail step 1's image, so a tolerance can never creep in unnoticed.
 ## Screenshots
 Each of the five steps ends with its screen **compared** with a checked-in image, `tests/demo/screenshots/<step>.png`:
-`1-organization`, `2-organization-filtered`, `3-repository`, `4-skills-filtered`, `5-skill`
+`1-organization`, `2-organization-filtered`, `3-repository`, `4-skills-filtered`, `5-skill`, and the two
+screens above: `before-a-scan`, `an-error`
+- **One changed pixel is a failure**: no tolerance, neither in a pixel's colour nor in how many differ.
+  Playwright allows a fifth of a colour by default, which is a tolerance for a page whose rendering is
+  not pinned; everything about this one is
 - The images are **CI's**: Linux, and the Chromium the workflow installs. They are identical for a given
   browser build, not across them, so **only CI compares**; elsewhere the comparison is skipped
 - On CI, a screen that differs from its image, or a step with no image, **fails** the run. Its artifact holds

@@ -9,6 +9,8 @@ import { Atlas, MONO, SANS, expect, test } from './atlas.ts';
 
 const ORGANIZATION = 'github.com/modelcontextprotocol';
 const REPOSITORY = 'https://github.com/modelcontextprotocol/inspector';
+/** A repository GitHub does not have, recorded as a 404: the page's error. */
+const MISSING = 'https://github.com/modelcontextprotocol/does-not-exist';
 
 /** The six repositories of the organization that have skills, with their counts, in the page's order. */
 const WITH_SKILLS = ['conformance', 'csharp-sdk', 'inspector', 'kotlin-sdk', 'python-sdk', 'servers'];
@@ -38,6 +40,26 @@ test('the window and the fonts the demo was recorded in', async ({ atlas, page }
   // The pinned families are loaded, and they are the ones the page is drawn with.
   expect(await page.evaluate(([sans, mono]) => [document.fonts.check(`400 1rem '${sans}'`), document.fonts.check(`400 1rem '${mono}'`)], [SANS, MONO])).toEqual([true, true]);
   await expect(atlas.repository).toHaveCSS('font-family', new RegExp(SANS));
+});
+
+// Two screens the video does not show, because nothing happens in them: where the demo starts, and
+// where a mistyped repository ends up. Both are in spec/web.md, and a page that loses its top bar
+// before a scan, or shows an error as a blank list, breaks here.
+test('before a scan: the top bar, and nothing else', async ({ atlas, page }) => {
+  await expect(atlas.repository).toHaveValue('');
+  await expect(atlas.filter).toBeVisible();
+  await expect(page.locator('#results')).toBeEmpty();
+  await expect(atlas.count).toBeEmpty();
+  await expect(page).toHaveScreenshot('before-a-scan.png');
+});
+
+test('an unreachable repository: its message, in the page', async ({ atlas, page }) => {
+  await atlas.repository.fill(MISSING);
+  await atlas.scanButton.click();
+  await expect(page.locator('#results p.error')).toHaveText(`Repository not found: ${MISSING}`);
+  // An error is not a list: there is nothing to filter and nothing to count.
+  await expect(atlas.count).toBeEmpty();
+  await expect(page).toHaveScreenshot('an-error.png');
 });
 
 test('1 · the organization scan', async ({ atlas, page }) => {
@@ -127,6 +149,28 @@ test('the demo, end to end', async ({ atlas }) => {
 
   await atlas.skills().filter({ hasText: 'issue-triage' }).click();
   expect((await atlas.chosen()).path).toBe('.claude/skills/issue-triage/SKILL.md');
+});
+
+// What the comparison is worth. The images above only mean something if the smallest change to the
+// page breaks them, and a tolerance that creeps up — a threshold, a few pixels allowed — would let
+// them pass while the page drifts. So: one pixel, painted over the first step's screen, must fail
+// that step's image.
+test('one changed pixel fails the comparison', async ({ atlas, page }, testInfo) => {
+  // Only CI compares screenshots at all; elsewhere there is nothing to fail.
+  test.skip(!process.env.CI, 'the comparison is CI’s');
+  // The Accept screenshots workflow rewrites an image that differs: here that would be this pixel,
+  // written into the very image step 1 compares against.
+  test.skip(['all', 'changed'].includes(testInfo.config.updateSnapshots), 'the images are being accepted');
+  await atlas.scan(ORGANIZATION);
+  await expect(atlas.heading).toHaveText('modelcontextprotocol · 45 repositories, 6 with skills');
+  await expect(atlas.file).toHaveText('Choose a repository to see its skills.');
+  // A single pixel, black on white, where the page leaves the right side empty.
+  await page.addStyleTag({ content: '#file::after { content: ""; position: fixed; left: 900px; top: 600px; width: 1px; height: 1px; background: #000; }' });
+  // Exactly one pixel, and the word boundary matters: "4231 pixels" would otherwise pass this as
+  // happily as "1 pixels", which is the whole difference between a comparison and a rubber stamp.
+  await expect(async () => {
+    await expect(page).toHaveScreenshot('1-organization.png', { timeout: 2_000 });
+  }).rejects.toThrow(/\b1 pixels\b/);
 });
 
 // Everything above is this page: a real `skill-atlas serve`, which reads the repository again on
