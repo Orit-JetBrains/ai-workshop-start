@@ -1,5 +1,6 @@
+import { AtlasError } from './errors.ts';
 import { findSkills, type SkillFile } from './find.ts';
-import { sortSkills, type Repository, type Skill } from './model.ts';
+import { sortRepositories, sortSkills, type Repository, type RepositorySkills, type Skill } from './model.ts';
 import { parseSkill, type ParsedSkill } from './parse.ts';
 
 /** A repository to scan: its files, and how to read them. */
@@ -14,6 +15,70 @@ export type Source = {
 };
 
 export type ScanResult = { repository: Repository; skills: Skill[]; warnings: string[] };
+
+/** An organization or user account to scan: its repositories, and how to list one's skill roots. */
+export type OrganizationSource = {
+  /** The account's own name, as GitHub spells it. */
+  organization: string;
+  /** Every repository, as `owner/name`. */
+  repositories: string[];
+  /** What listing the repositories had to leave out. */
+  warnings: string[];
+  /** Every file in the repository's skill roots, as a scan's paths, but from those roots alone. */
+  paths(repository: string): Promise<string[]>;
+};
+
+export type OrganizationScanResult = {
+  organization: string;
+  /** How many repositories the account has. */
+  repositories: number;
+  /** Only the repositories that have skills, sorted by name. */
+  withSkills: RepositorySkills[];
+  warnings: string[];
+};
+
+/** How many repositories are read at the same time: an organization has hundreds of them. */
+const AT_A_TIME = 8;
+
+/**
+ * Every repository of an organization, and how many project skills it has: the same rules as a
+ * scan's, counted from the skill roots alone. Nothing is stored: the result is all there is.
+ */
+export async function scanOrganization(source: OrganizationSource): Promise<OrganizationScanResult> {
+  const counted = await eachAtATime(source.repositories, AT_A_TIME, async (id) => {
+    try {
+      // The skills of a repository, as findSkills counts them: copies are one skill, links are skipped.
+      const skills = findSkills(await source.paths(id)).files.length;
+      return { repository: { id, name: id.split('/').at(-1) ?? id, skills }, warnings: [] };
+    } catch (error) {
+      // A rate limit stops the whole scan: every repository after it would only fail the same way.
+      if (error instanceof AtlasError && /rate limit/i.test(error.message)) throw error;
+      return { warnings: [`${id}: ${error instanceof Error ? error.message : String(error)}; skipped`] };
+    }
+  });
+  const found = counted.flatMap((each) => (each.repository && each.repository.skills > 0 ? [each.repository] : []));
+  return {
+    organization: source.organization,
+    repositories: source.repositories.length,
+    withSkills: sortRepositories(found),
+    // In the repositories' own order, whichever one answered first.
+    warnings: [...source.warnings, ...counted.flatMap((each) => each.warnings)],
+  };
+}
+
+/** `work` over each item, at most `limit` of them at a time, in the items' order. */
+async function eachAtATime<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await work(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 
 /** fetch → find → parse. Nothing is stored: the result is all there is. */
 export async function scan(source: Source): Promise<ScanResult> {

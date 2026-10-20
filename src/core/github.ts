@@ -1,6 +1,6 @@
 import { AtlasError } from './errors.ts';
 import { SKILL_ROOTS } from './find.ts';
-import type { Source } from './scan.ts';
+import type { OrganizationSource, Source } from './scan.ts';
 
 /** The part of `fetch` the core uses, so tests and the browser can pass their own. */
 export type Fetch = (url: string, init?: { headers?: Record<string, string> }) => Promise<Response>;
@@ -18,6 +18,49 @@ const RAW = 'https://raw.githubusercontent.com';
 export function parseGitHubUrl(input: string): { owner: string; repo: string } | undefined {
   const match = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(input.trim());
   return match ? { owner: match[1], repo: match[2] } : undefined;
+}
+
+/** `https://github.com/owner`, with no repository part: an organization or a user account. */
+export function parseGitHubOrganization(input: string): { organization: string } | undefined {
+  const match = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/?$/i.exec(input.trim());
+  return match ? { organization: match[1] } : undefined;
+}
+
+/**
+ * Every repository of an organization or user account, and how to list each one's skill roots.
+ * The skills are counted from those roots alone: no SKILL.md is read.
+ */
+export async function openOrganization(input: string, options: GitHubOptions): Promise<OrganizationSource> {
+  const name = parseGitHubOrganization(input);
+  if (!name) throw new AtlasError(`Not a GitHub organization URL: ${input}`);
+  // An organization has far more repositories than the 60 requests an hour GitHub allows without a token.
+  if (!options.token) {
+    throw new AtlasError('Scanning an organization needs GITHUB_TOKEN: without it GitHub allows 60 requests an hour, too few for its repositories');
+  }
+  const github = client(options);
+  const account = await github.json<{ login: string; type: string }>(
+    `${API}/users/${encodeURIComponent(name.organization)}`,
+    `Organization or user not found: https://github.com/${name.organization}`,
+  );
+  // An organization's repositories and a user's come from different endpoints; the login tells which.
+  const listing = account.type === 'Organization' ? `${API}/orgs/${account.login}/repos` : `${API}/users/${account.login}/repos`;
+  const branches = new Map<string, string>();
+  for (let page = 1; ; page++) {
+    const items = await github.json<{ full_name: string; default_branch: string }[]>(`${listing}?per_page=100&page=${page}`);
+    for (const item of items) branches.set(item.full_name, item.default_branch);
+    if (items.length < 100) break;
+  }
+  return {
+    organization: account.login,
+    repositories: [...branches.keys()],
+    warnings: [],
+    paths: async (id) => {
+      const branch = branches.get(id);
+      if (!branch) throw new AtlasError(`Not a repository of ${account.login}: ${id}`);
+      const { sha } = await github.json<{ sha: string }>(`${API}/repos/${id}/commits/${encodePath(branch)}`);
+      return rootPaths(github, id, sha);
+    },
+  };
 }
 
 /** Resolves the default branch to a commit and lists the files that may be skills. */

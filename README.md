@@ -13,6 +13,17 @@ build-tools-bump-gradle-api — Bumps the Gradle API version that Kotlin Gradle 
 …
 ```
 
+`./skill-atlas scan github.com/<organization>` — a GitHub URL with no repository part — scans a whole
+organization or user account instead: how many skills each of its repositories has. It needs `GITHUB_TOKEN`.
+
+```console
+$ ./skill-atlas scan github.com/JetBrains
+JetBrains · 865 repositories, 27 with skills
+intellij-community · 38 skills
+MPS · 41 skills
+…
+```
+
 `./skill-atlas serve` opens a local web view at http://127.0.0.1:4321/: a field for a
 repository link, its skills, and each skill's SKILL.md.
 

@@ -198,6 +198,16 @@ test('unreachable repository, or no repository → its message, status 400', asy
   assert.equal(JSON.parse(empty.body).error, 'Enter a GitHub URL or a directory');
 });
 
+test('the field takes one repository: an organization says to scan it with the CLI', async () => {
+  // No request reaches GitHub: the organization is recognised from the input alone.
+  const organization = await scanned('github.com/JetBrains');
+  assert.equal(organization.status, 400);
+  assert.equal(
+    organization.answer.error,
+    'github.com/JetBrains is an organization, not a repository: scan it with skill-atlas scan github.com/JetBrains',
+  );
+});
+
 test('any other path → 404', async () => {
   assert.equal((await get('/nope')).status, 404);
 });
