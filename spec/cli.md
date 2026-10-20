@@ -11,6 +11,19 @@ build-tools-bump-gradle-api — Bumps the Gradle API…
 - Sorted by **name**; the description's *first sentence*
 - `also in <paths>` for copies; warnings go to *stderr*
 
+## An organization
+`./skill-atlas scan github.com/<organization>`: a GitHub URL with **no repository part**, an
+organization or a user account. `GITHUB_TOKEN` is *required* here, as 60 requests an hour
+cannot reach an organization's repositories.
+```
+JetBrains · 865 repositories, 27 with skills
+intellij-community · 38 skills
+MPS · 41 skills
+```
+- `<organization> · <N> repositories, <M> with skills`, then *every* repository that **has** skills
+- A **count**, not the skills themselves; sorted by **name**, repositories without skills are not listed
+- A repository GitHub fails to answer → a *warning*; warnings go to *stderr*
+
 ## Live repository snapshots
 `npm run test:real` scans JetBrains/MPS, JetBrains/android and JetBrains/Koog, then
 compares stdout and warnings with the checked-in text in `tests/snapshots/real-repos/`.

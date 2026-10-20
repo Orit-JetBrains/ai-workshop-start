@@ -2,7 +2,8 @@
 `./skill-atlas serve [port]`: a local web page, at `http://127.0.0.1:<port>/` (port *4321* by default, `0` for any free one).
 Prints the address; it only listens on **127.0.0.1**. `GITHUB_TOKEN` works as for `scan`.
 ## Page
-- A **field** for a repository: a GitHub URL or a local directory, as for `scan`; *Scan* runs it
+- A **field** for a repository: a GitHub URL or a local directory, as for `scan`; *Scan* runs it.
+  **One repository** only: an organization URL (`github.com/JetBrains`) says to scan it with the CLI
 - The result: `<owner>/<repo> · N skills`, then each skill's **name**, **description** and **link**, sorted as for `scan`;
   `also in <paths>` for copies; the warnings below
 - A **filter** above the list: it narrows the list to the skills whose **name** or **description**

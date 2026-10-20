@@ -33,8 +33,24 @@ export function skillLink(repository: Repository, skill: Skill): string {
   return skill.commit ? `${repository.url}/blob/${skill.commit}/${path}` : `${repository.url}/${path}`;
 }
 
+/** One repository of an organization, with how many project skills it has. */
+export type RepositorySkills = {
+  /** `owner/name`, for example `JetBrains/kotlin`. */
+  id: string;
+  /** The repository's own name, without the owner: the organization is printed above it. */
+  name: string;
+  skills: number;
+};
+
+/** The same order everywhere, whatever the locale. */
+const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 /** By name, then by path: the same order everywhere, whatever the locale. */
 export function sortSkills(skills: Skill[]): Skill[] {
-  const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
   return [...skills].sort((a, b) => compare(a.name, b.name) || compare(a.path, b.path));
+}
+
+/** By name, then by owner: two owners can have a repository of the same name. */
+export function sortRepositories(repositories: RepositorySkills[]): RepositorySkills[] {
+  return [...repositories].sort((a, b) => compare(a.name, b.name) || compare(a.id, b.id));
 }

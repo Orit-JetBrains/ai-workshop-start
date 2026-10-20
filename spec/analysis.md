@@ -1,8 +1,8 @@
 # Repository analysis
 ## Input
-A **GitHub repository** URL, or a local directory
+A **GitHub repository** URL, a **GitHub organization** or user URL, or a local directory
 ## Output
-Every *project skill*: **name**, **description**, **link**
+Every *project skill*: **name**, **description**, **link**; for an organization, each repository's **skill count**
 ## Architecture
 Core: fetch → find → parse. CLI: a *thin client*.
 Skill: id = `repo:path`, name, description, commit
@@ -25,6 +25,19 @@ The **same directory** in several skill roots is *one skill*, as agents mirror t
   a copy with malformed front matter has no name to compare: only its own warning
 - A copy GitHub fails to answer → a *warning*, the scan goes on; no file of the skill answered → the error, exit code 1
 - Different directories with the same front matter name: *two skills*, sorted by path
+## An organization
+A **GitHub URL with no repository part** (`github.com/JetBrains`): every repository of the
+organization — or of a **user account**, as both are listed — and how many project skills each has
+- The repositories come from the GitHub API, *every page*; the account's own name is used, as GitHub spells it
+- A repository's skills are **counted** from the *skill roots' trees* alone, and *no `SKILL.md` is read*:
+  a skill's name is not needed for a count, so a copy's name is not compared and a malformed one costs nothing
+- The rules are the scan's: one directory deep, the same directory in several roots is *one* skill, links are skipped
+- A `SKILL.md` *outside* a skill root is **not** flagged here: finding one takes the whole tree of every repository
+- `GITHUB_TOKEN` is **required**: without it GitHub allows 60 requests an hour → a clear message, exit code 1
+- An unreachable organization or user → a clear message, exit code 1
+- A repository GitHub fails to answer, an *empty* one say → a *warning*, the scan goes on; a *rate limit* ends it
+- At most **8 repositories at a time**
+- The web view takes one repository: an organization in its field says to use the CLI
 ## Details
 - **GitHub API**, no clone; *under 5 s* for intellij-community
 - The skills come from the *skill roots' trees*, which tell a symbolic link from a file
