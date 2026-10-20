@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, rm, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { scenarios } from './scenarios.mjs';
 
@@ -187,7 +187,7 @@ const [webm] = (await readdir(videoDirectory)).filter((file) => file.endsWith('.
 if (!webm) fail('Playwright captured no video');
 const raw = join(videoDirectory, webm);
 
-await mkdir(out.replace(/\/[^/]+$/, ''), { recursive: true });
+await mkdir(dirname(out), { recursive: true });
 // 15 fps and CRF 26 keep a 40 s take well under a megabyte; faststart lets it play while loading.
 await run('ffmpeg', [
   '-hide_banner', '-v', 'error', '-y',
