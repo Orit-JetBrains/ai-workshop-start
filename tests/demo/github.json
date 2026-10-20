@@ -3301,6 +3301,138 @@
       "sha": "074b8108f340590268f2900741403755e923a11c"
     }
   },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/board-ops/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-02T01:03:00Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/issue-create/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-09-19T01:24:24Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/issue-triage/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-01T23:10:25Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/local-dev/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-05T16:42:52Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/pr-flow/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-12T03:35:53Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/pre-push-gate/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-13T05:13:14Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/project-structure/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-07T03:51:40Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/release/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-12T18:52:12Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/security-advisory/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-01T23:10:25Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/test-servers/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-12T05:54:32Z"
+          }
+        }
+      }
+    ]
+  },
+  "https://api.github.com/repos/modelcontextprotocol/inspector/commits?sha=074b8108f340590268f2900741403755e923a11c&path=.claude/skills/testing/SKILL.md&per_page=1": {
+    "status": 200,
+    "body": [
+      {
+        "commit": {
+          "committer": {
+            "date": "2026-10-07T04:08:44Z"
+          }
+        }
+      }
+    ]
+  },
   "https://api.github.com/repos/modelcontextprotocol/inspector/git/trees/074b8108f340590268f2900741403755e923a11c": {
     "status": 200,
     "body": {

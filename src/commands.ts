@@ -73,11 +73,13 @@ function printOrganization(result: OrganizationScanResult, { print }: Context) {
   }
 }
 
-/** `<owner>/<repo> · N skills`, then each skill's name, first sentence and link. */
+/** `<owner>/<repo> · N skills`, then each skill's name, first sentence, date and link. */
 function printRepository(repository: Repository, skills: Skill[], { print }: Context) {
   print(`${repository.id} · ${skills.length} ${skills.length === 1 ? 'skill' : 'skills'}`);
   for (const skill of skills) {
     print(skill.description ? `${skill.name} — ${firstSentence(skill.description)}` : skill.name);
+    // Under the name, where a skill that has no date simply has no line.
+    if (skill.updatedAt) print(`  updated ${skill.updatedAt}`);
     print(`  ${skillLink(repository, skill)}`);
     if (skill.copies.length > 0) print(`  also in ${skill.copies.join(', ')}`);
   }

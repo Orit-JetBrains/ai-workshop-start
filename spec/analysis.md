@@ -2,10 +2,10 @@
 ## Input
 A **GitHub repository** URL, a **GitHub organization** or user URL, or a local directory
 ## Output
-Every *project skill*: **name**, **description**, **link**; for an organization, each repository's **skill count**
+Every *project skill*: **name**, **description**, **link**, **last updated**; for an organization, each repository's **skill count**
 ## Architecture
 Core: fetch → find → parse. CLI: a *thin client*.
-Skill: id = `repo:path`, name, description, commit
+Skill: id = `repo:path`, name, description, commit, updatedAt
 ## Project skill
 A file `<root>/<directory>/SKILL.md`, where `<root>` is a **skill root** at the top of the repository:
 `.agents/skills`, `.claude/skills`, `.github/skills`, `agent/skills` (in that order)
@@ -25,6 +25,23 @@ The **same directory** in several skill roots is *one skill*, as agents mirror t
   a copy with malformed front matter has no name to compare: only its own warning
 - A copy GitHub fails to answer → a *warning*, the scan goes on; no file of the skill answered → the error, exit code 1
 - Different directories with the same front matter name: *two skills*, sorted by path
+- The **last updated** date is the *newest* of the copies': a mirrored skill is as fresh as its freshest folder
+## Last updated
+The date of the **last commit that touched the skill's `SKILL.md`**, so a skill left untouched for a year says so
+- An **absolute** date, `2026-03-14`, the commit's day in **UTC**: never a relative one, which would move with
+  the day a scan runs, and with it every snapshot, screenshot and demo
+- **GitHub**: the commits API for the path, `?sha=<scanned commit>&path=<path>&per_page=1`, the scanned commit
+  pinning the history as it pins the links. **One request per file of the skill**, its copies included, asked for
+  at the same time as the files themselves: the date is wanted for *every* skill the CLI prints and the web view
+  lists, not only a chosen one, so there is no cheaper moment to ask. It roughly *doubles* a repository's requests,
+  which is why an unauthenticated scan — 60 requests an hour — reaches fewer repositories than before; `GITHUB_TOKEN`
+  raises that limit, as it does for the rest of the scan
+- A **local directory**: `git log -1 --format=%cI -- <path>`. A directory that is *not a git checkout*, or a machine
+  with *no git*, has **no date**: the skills are listed without one
+- No commit for the path, a file that history does not reach → **no date**
+- The date is not the skill: a source that *fails* to answer for one → a *warning* (`<path>: <message>; no date`),
+  the skill is still listed, and the scan goes on; a **rate limit** still *ends* it, as for the files themselves
+- An organization's scan does not read it: it stays a **count** per repository
 ## An organization
 A **GitHub URL with no repository part** (`github.com/JetBrains`): every repository of the
 organization — or of a **user account**, as both are listed — and how many project skills each has

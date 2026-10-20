@@ -6,9 +6,12 @@ Prints the result **at once**; *nothing is stored*.
 ```
 JetBrains/kotlin · 6 skills
 build-tools-bump-gradle-api — Bumps the Gradle API…
+  updated 2026-03-14
   https://github.com/JetBrains/kotlin/blob/<commit>/…
 ```
 - Sorted by **name**; the description's *first sentence*
+- `updated <date>` under the name: the skill's **last updated** date, as
+  [the analysis](analysis.md#last-updated) reads it; a skill with *no* date has *no* such line
 - `also in <paths>` for copies; warnings go to *stderr*
 
 ## An organization
@@ -31,7 +34,7 @@ MPS · 41 skills
 such as JetBrains costs thousands of requests a run, most of an hour's quota.
 The comparison ignores only the commit hash in GitHub skill links, and the tree hash in a
 warning, so a new upstream commit without a changed result does not fail the check. A changed
-skill, description, copy, count or warning produces a diff and a nonzero exit code.
+skill, description, copy, date, count or warning produces a diff and a nonzero exit code.
 `npm run test:real:update` refreshes the snapshots after all four scans succeed.
 These live checks need `GITHUB_TOKEN` or an existing `gh` login and are separate
 from the offline `npm test` suite.

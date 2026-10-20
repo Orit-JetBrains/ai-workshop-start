@@ -87,7 +87,20 @@ export async function openGitHub(input: string, options: GitHubOptions): Promise
     paths,
     warnings,
     read: (path) => github.raw(`${RAW}/${id}/${sha}/${encodePath(path)}`),
+    updated: (path) => lastCommitDate(github, id, sha, path),
   };
+}
+
+/**
+ * The last commit up to the scanned one that touched the path: the commits API, one request per
+ * file, which the scanned commit pins as the links are pinned. A path with no commit of its own —
+ * one that history does not reach — has no date.
+ */
+async function lastCommitDate(github: Client, id: string, sha: string, path: string): Promise<string | undefined> {
+  const commits = await github.json<{ commit?: { committer?: { date?: string } } }[]>(
+    `${API}/repos/${id}/commits?sha=${sha}&path=${encodePath(path)}&per_page=1`,
+  );
+  return commits[0]?.commit?.committer?.date;
 }
 
 /**

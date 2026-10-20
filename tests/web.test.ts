@@ -2,8 +2,9 @@
 // web view over a small GitHub repository answered from a recording.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -11,12 +12,12 @@ import { openGitHub, openOrganization } from '../src/core/github.ts';
 import { replay, type Recording } from '../src/core/replay.ts';
 import { openDirectory } from '../src/local.ts';
 import { serve } from '../src/web.ts';
-import { CLI, EXAMPLE_COMMIT, FIXTURE, trees } from './helpers.ts';
+import { CLI, EXAMPLE_COMMIT, FIXTURE, SKILL_DAY, trees } from './helpers.ts';
 import { openPage } from './page.ts';
 
 type Answer = {
   repository: { id: string };
-  skills: { name: string; description: string; path: string; link: string; copies: string[]; text: string }[];
+  skills: { name: string; description: string; path: string; link: string; updatedAt: string; copies: string[]; text: string }[];
   warnings: string[];
   error?: string;
 };
@@ -184,6 +185,45 @@ test('a local directory: every project skill sorted as for scan, with its link, 
   for (const skill of answer.skills) assert.equal(skill.text, readFileSync(join(FIXTURE, skill.path), 'utf8'));
 });
 
+test('the API answers each skill its updatedAt, an ISO-8601 date', async () => {
+  // ./fixture is in this checkout's git history, so every skill of it has a date.
+  const { answer } = await scanned(FIXTURE);
+  for (const skill of answer.skills) assert.match(skill.updatedAt, /^\d{4}-\d{2}-\d{2}$/, `${skill.name}: ${skill.updatedAt}`);
+});
+
+test('the page shows the date beside each skill, and with the chosen one', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  const dates = page.element('results').querySelectorAll('li.skill').map((item) => item.querySelector('div.updated')?.text);
+  assert.equal(dates.length, 6);
+  for (const date of dates) assert.match(date ?? '', /^updated \d{4}-\d{2}-\d{2}$/);
+  // The chosen skill: its path, its date and its SKILL.md.
+  assert.equal(page.element('file').querySelector('div.updated')?.text, dates[0]);
+  assert.equal(page.element('file').querySelector('h1')?.text, '.github/skills/code-style/SKILL.md');
+});
+
+test('a repository with no git history: no date in the answer, and none on the page', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'skill-atlas-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  mkdirSync(join(directory, '.claude/skills/a'), { recursive: true });
+  writeFileSync(join(directory, '.claude/skills/a/SKILL.md'), '---\nname: a\ndescription: Skill a.\n---\n');
+  const { answer } = await scanned(directory);
+  assert.deepEqual(answer.skills.map((skill) => [skill.name, skill.updatedAt]), [['a', '']]);
+  const page = await openPage(address);
+  await page.scan(directory);
+  assert.equal(page.element('results').querySelector('li.skill')?.querySelector('div.updated'), null);
+  assert.equal(page.element('file').querySelector('div.updated'), null);
+});
+
+test('the filter does not match on the date', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  // Every row shows "updated", and none of them is a name or a description.
+  page.type('updated');
+  assert.deepEqual(page.visible(), []);
+  assert.equal(page.count(), '0 of 6');
+});
+
 test('the warnings come with the skills', async () => {
   const { answer } = await scanned(FIXTURE);
   assert.ok(answer.warnings.includes('docs/SKILL.md: not in a skill root; ignored'));
@@ -329,11 +369,12 @@ test('a GitHub repository: the skill with its pinned link and SKILL.md', async (
     const { status, answer } = await scanned('https://github.com/JetBrains/example', url);
     assert.equal(status, 200);
     assert.equal(answer.repository.id, 'JetBrains/example');
-    assert.deepEqual(answer.skills.map(({ name, description, link, text }) => ({ name, description, link, text })), [
+    assert.deepEqual(answer.skills.map(({ name, description, link, updatedAt, text }) => ({ name, description, link, updatedAt, text })), [
       {
         name: 'commits',
         description: 'Write commit messages.',
         link: `https://github.com/JetBrains/example/blob/${EXAMPLE_COMMIT}/.claude/skills/commits/SKILL.md`,
+        updatedAt: SKILL_DAY,
         text,
       },
     ]);

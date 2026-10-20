@@ -11,10 +11,18 @@ import { openGitHub } from '../src/core/github.ts';
 import { parseSkill } from '../src/core/parse.ts';
 import { run } from '../src/commands.ts';
 import { replay, type Recording } from '../src/core/replay.ts';
-import { atlas, CLI, EXAMPLE_COMMIT, FIXTURE, trees } from './helpers.ts';
+import { atlas, CLI, EXAMPLE_COMMIT, FIXTURE, lastCommits, SKILL_DATE, SKILL_DAY, trees } from './helpers.ts';
 
 const fixture = await atlas(['scan', FIXTURE]);
 const example = await atlas(['scan', 'github.com/JetBrains/example']);
+
+/**
+ * The output with every date line put back to `updated <date>`: this checkout's own history is the
+ * fixture's, and a clone of it — CI's shallow one included — dates the files differently.
+ */
+function undated(output: string): string {
+  return output.replace(/^ {2}updated \d{4}-\d{2}-\d{2}$/gm, '  updated <date>');
+}
 
 test('malformed front matter → the directory name, no description and a warning', () => {
   const parsed = parseSkill(readFileSync(join(FIXTURE, '.agents/skills/release-checklist/SKILL.md'), 'utf8'));
@@ -33,6 +41,7 @@ test('scan prints the repository, then each skill with its first sentence and pi
     [
       'JetBrains/example · 1 skill',
       'commits — Write commit messages the way this repository does.',
+      `  updated ${SKILL_DAY}`,
       `  https://github.com/JetBrains/example/blob/${EXAMPLE_COMMIT}/.claude/skills/commits/SKILL.md`,
     ].join('\n'),
   );
@@ -42,22 +51,28 @@ test('./fixture: every project skill, sorted by name, linked to its file, with i
   const root = pathToFileURL(FIXTURE).href;
   assert.equal(fixture.code, 0);
   assert.equal(
-    fixture.stdout,
+    undated(fixture.stdout),
     [
       'fixture · 6 skills',
       "code-style — Follow the project's code style.",
+      '  updated <date>',
       `  ${root}/.github/skills/code-style/SKILL.md`,
       '  also in agent/skills/code-style/SKILL.md',
       'commits — Write commit messages the way this repository does.',
+      '  updated <date>',
       `  ${root}/.claude/skills/commits/SKILL.md`,
       '  also in agent/skills/commits/SKILL.md',
       'deploy',
+      '  updated <date>',
       `  ${root}/.claude/skills/deploy/SKILL.md`,
       'release-checklist',
+      '  updated <date>',
       `  ${root}/.agents/skills/release-checklist/SKILL.md`,
       'review — Review a change before it is merged (review-a).',
+      '  updated <date>',
       `  ${root}/.claude/skills/review-a/SKILL.md`,
       'review — Review a change before it is merged (review-b).',
+      '  updated <date>',
       `  ${root}/.claude/skills/review-b/SKILL.md`,
     ].join('\n'),
   );
@@ -101,11 +116,14 @@ test('a copy under another name → still one skill, and a warning', () => {
 });
 
 test('different directories with the same name → two skills, sorted by path', () => {
-  assert.match(fixture.stdout, /^review — .*\(review-a\)\.\n.*review-a\/SKILL\.md\nreview — .*\(review-b\)\.\n.*review-b\/SKILL\.md$/m);
+  assert.match(
+    undated(fixture.stdout),
+    /^review — .*\(review-a\)\.\n  updated <date>\n.*review-a\/SKILL\.md\nreview — .*\(review-b\)\.\n  updated <date>\n.*review-b\/SKILL\.md$/m,
+  );
 });
 
 test('no description → the skill is listed by name alone', () => {
-  assert.match(fixture.stdout, /^deploy\n  .*\/\.claude\/skills\/deploy\/SKILL\.md$/m);
+  assert.match(undated(fixture.stdout), /^deploy\n  updated <date>\n  .*\/\.claude\/skills\/deploy\/SKILL\.md$/m);
 });
 
 test('symbolic links are not followed: a linked file, directory or skill root is skipped', async (t) => {
@@ -274,6 +292,115 @@ test('a copy with malformed front matter → its warning, but no other name to c
   assert.doesNotMatch(scanned.stderr, /a copy of/);
 });
 
+test('GitHub: the date is the last commit that touched the SKILL.md, up to the scanned commit', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md']),
+    ...lastCommits('JetBrains/edge', COMMIT, { '.claude/skills/a/SKILL.md': '2026-03-14T18:02:11Z' }),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+  });
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.match(scanned.stdout, /^a — Skill a\.\n  updated 2026-03-14\n/m);
+  assert.equal(scanned.stderr, '');
+});
+
+test('GitHub: no commit for the path → no date, and nothing else changes', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md']),
+    ...lastCommits('JetBrains/edge', COMMIT, { '.claude/skills/a/SKILL.md': '' }),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+  });
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.equal(scanned.stdout, ONLY_A.split('\n').filter((line) => !line.startsWith('  updated ')).join('\n'));
+  assert.equal(scanned.stderr, '');
+});
+
+test('GitHub: a date GitHub fails to answer → a warning, the skill is still listed', async () => {
+  const path = '.claude/skills/a/SKILL.md';
+  const commits = `${API}/repos/JetBrains/edge/commits?sha=${COMMIT}&path=${path}&per_page=1`;
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, [path]),
+    ...file(path, SKILL_A),
+    [commits]: { status: 502, body: { message: 'Bad Gateway' } },
+  });
+  assert.equal(scanned.code, 0);
+  assert.equal(scanned.stdout, ONLY_A.split('\n').filter((line) => !line.startsWith('  updated ')).join('\n'));
+  assert.equal(scanned.stderr, `warning: ${path}: GitHub answered 502 for ${commits}: Bad Gateway; no date`);
+});
+
+test("GitHub: the hour's requests spent on a date → the scan ends, as for a file", async () => {
+  const path = '.claude/skills/a/SKILL.md';
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, [path]),
+    ...file(path, SKILL_A),
+    [`${API}/repos/JetBrains/edge/commits?sha=${COMMIT}&path=${path}&per_page=1`]: {
+      status: 403,
+      body: { message: 'API rate limit exceeded for 192.0.2.1.' },
+      headers: { 'x-ratelimit-remaining': '0' },
+    },
+  });
+  assert.equal(scanned.code, 1);
+  assert.equal(scanned.stdout, '');
+  assert.equal(scanned.stderr, 'GitHub rate limit reached; set GITHUB_TOKEN');
+});
+
+test('a skill in several roots → the newest of its copies', async () => {
+  const paths = ['.claude/skills/a/SKILL.md', 'agent/skills/a/SKILL.md'];
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, paths),
+    // The copy is the newer file: the skill is as fresh as its freshest folder.
+    ...lastCommits('JetBrains/edge', COMMIT, { [paths[0]]: '2026-01-05T10:00:00Z', [paths[1]]: '2026-04-30T07:45:00Z' }),
+    ...file(paths[0], SKILL_A),
+    ...file(paths[1], SKILL_A),
+  });
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.match(scanned.stdout, /^  updated 2026-04-30$/m);
+  assert.doesNotMatch(scanned.stdout, /2026-01-05/);
+});
+
+test('a local git checkout: the date of the last commit that touched the SKILL.md', async (t) => {
+  const directory = temporary(t, {
+    '.claude/skills/a/SKILL.md': '---\nname: a\ndescription: Skill a.\n---\n',
+    '.claude/skills/b/SKILL.md': '---\nname: b\ndescription: Skill b.\n---\n',
+  });
+  // The committer's date is the one the scan reads, so a commit made here is given the day it checks.
+  const git = (args: string[], date?: string) => {
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
+    const result = spawnSync('git', ['-C', directory, ...args], {
+      encoding: 'utf8',
+      env: date ? { ...env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } : env,
+    });
+    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
+  };
+  git(['init', '-q', '-b', 'main']);
+  git(['config', 'user.email', 'test@example.com']);
+  git(['config', 'user.name', 'Test']);
+  git(['add', '.']);
+  git(['commit', '-q', '-m', 'Both skills'], '2026-03-14T12:00:00Z');
+  // Only b is touched again: a keeps the first commit's day, b takes the second's.
+  writeFileSync(join(directory, '.claude/skills/b/SKILL.md'), '---\nname: b\ndescription: Skill b, revised.\n---\n');
+  git(['add', '.']);
+  git(['commit', '-q', '-m', 'Revise b'], '2026-07-02T08:30:00Z');
+
+  const scanned = await atlas(['scan', directory]);
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.match(scanned.stdout, /^a — Skill a\.\n  updated 2026-03-14\n/m);
+  assert.match(scanned.stdout, /^b — Skill b, revised\.\n  updated 2026-07-02\n/m);
+  assert.equal(scanned.stderr, '');
+});
+
+test('a local directory that is not a git checkout → no date, and no warning', async (t) => {
+  const directory = temporary(t, { '.claude/skills/a/SKILL.md': '---\nname: a\ndescription: Skill a.\n---\n' });
+  const scanned = await atlas(['scan', directory]);
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.equal(scanned.stdout, ['repo · 1 skill', 'a — Skill a.', `  ${pathToFileURL(directory).href}/.claude/skills/a/SKILL.md`].join('\n'));
+  assert.equal(scanned.stderr, '');
+});
+
 test('the CLI prints the result at once and stores nothing', (t) => {
   const cwd = mkdtempSync(join(tmpdir(), 'skill-atlas-'));
   t.after(() => rmSync(cwd, { recursive: true, force: true }));
@@ -324,7 +451,12 @@ function repository(): Recording {
 }
 
 const SKILL_A = '---\nname: a\ndescription: Skill a.\n---\n';
-const ONLY_A = ['JetBrains/edge · 1 skill', 'a — Skill a.', `  https://github.com/JetBrains/edge/blob/${COMMIT}/.claude/skills/a/SKILL.md`].join('\n');
+const ONLY_A = [
+  'JetBrains/edge · 1 skill',
+  'a — Skill a.',
+  `  updated ${SKILL_DAY}`,
+  `  https://github.com/JetBrains/edge/blob/${COMMIT}/.claude/skills/a/SKILL.md`,
+].join('\n');
 
 function raw(path: string): string {
   return `https://raw.githubusercontent.com/JetBrains/edge/${COMMIT}/${path}`;

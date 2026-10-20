@@ -31,6 +31,21 @@ const SKILLS = [
   'testing',
 ];
 
+/** When each of them was last changed, in the same order: the recording's dates. */
+const UPDATED = [
+  'updated 2026-10-02',
+  'updated 2026-09-19',
+  'updated 2026-10-01',
+  'updated 2026-10-05',
+  'updated 2026-10-12',
+  'updated 2026-10-13',
+  'updated 2026-10-07',
+  'updated 2026-10-12',
+  'updated 2026-10-01',
+  'updated 2026-10-12',
+  'updated 2026-10-07',
+];
+
 // The run is only as repeatable as the browser it runs in: if the viewport or the fonts ever stop
 // being the demo's, this fails here rather than as a puzzling difference in a video.
 test('the window and the fonts the demo was recorded in', async ({ atlas, page }) => {
@@ -94,9 +109,11 @@ test('3 · a repository chosen from the organization', async ({ atlas, page }) =
   await expect(atlas.heading).toHaveText('modelcontextprotocol/inspector · 11 skills');
   await expect(atlas.skills()).toHaveCount(11);
   expect(await atlas.names(atlas.skills())).toEqual(SKILLS);
-  // Each skill with its name, its description and its link.
+  // Each skill with its name, its description, its last updated date and its link.
   const first = atlas.skills().first();
   await expect(first.locator('.description')).toContainText('gh recipes for the Inspector project boards');
+  await expect(first.locator('.updated')).toHaveText('updated 2026-10-02');
+  expect(await atlas.skills().locator('.updated').allTextContents()).toEqual(UPDATED);
   await expect(first.locator('a.link')).toHaveAttribute('href', `https://github.com/modelcontextprotocol/inspector/blob/074b8108f340590268f2900741403755e923a11c/.claude/skills/board-ops/SKILL.md`);
   // A scan empties the filter.
   await expect(atlas.filter).toHaveValue('');
@@ -119,10 +136,12 @@ test('4 · the filter, on the skills', async ({ atlas, page }) => {
 test('5 · a skill chosen, its SKILL.md', async ({ atlas, page }) => {
   await atlas.scan(REPOSITORY);
   // The first skill is chosen by the scan itself.
-  expect(await atlas.chosen()).toMatchObject({ path: '.claude/skills/board-ops/SKILL.md' });
+  expect(await atlas.chosen()).toMatchObject({ path: '.claude/skills/board-ops/SKILL.md', updated: 'updated 2026-10-02' });
   await atlas.skills().filter({ hasText: 'issue-triage' }).click();
   const chosen = await atlas.chosen();
   expect(chosen.path).toBe('.claude/skills/issue-triage/SKILL.md');
+  // Its date comes with its file, as it does in the list.
+  expect(chosen.updated).toBe('updated 2026-10-01');
   // The whole file as text, front matter included.
   expect(chosen.text.startsWith('---\n')).toBe(true);
   expect(chosen.text).toContain('name: issue-triage');
