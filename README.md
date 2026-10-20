@@ -30,11 +30,19 @@ with skills; choose one to see them.
 
 Set `GITHUB_TOKEN` for a higher GitHub rate limit. `npm test` runs the tests.
 
+`npm run e2e` screenshots the key moments of the web view in a real browser and compares them with
+the baselines in [tests/e2e/screenshots/](tests/e2e/screenshots/), to the pixel — one changed pixel
+is a failure. It needs Docker: the browser and its fonts run in the container of
+[tests/e2e/Dockerfile](tests/e2e/Dockerfile), the same one CI uses, so a baseline made here is the
+one CI compares against. `npm run e2e:update` remakes the baselines, to be reviewed in the diff.
+Each run leaves a video of the browser under `test-results/`.
+
 To compare live scans of JetBrains/MPS, JetBrains/android, JetBrains/Koog and the
 Orit-JetBrains organization with checked-in output, run `npm run test:real`. The command uses `GITHUB_TOKEN`
 or your existing `gh` login. It shows a diff if a result changes. Run
 `npm run test:real:update` to refresh the snapshots after reviewing the changes.
 
 - [docs/demo/](docs/demo/): a short video of the organization scan and the filter, in the web view.
-- [spec/](spec/): what it does. [AGENTS.md](AGENTS.md): the definition of done.
+- [spec/](spec/): what it does, [spec/screenshots.md](spec/screenshots.md) included.
+  [AGENTS.md](AGENTS.md): the definition of done.
 - [fixture/](fixture/README.md): a small repository for the tests.

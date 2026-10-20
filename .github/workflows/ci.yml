@@ -27,3 +27,28 @@ jobs:
         run: |
           ./skill-atlas help
           ./skill-atlas scan ./fixture
+
+  # The screenshots of the web view against the baselines in tests/e2e/screenshots. The browser runs
+  # in the container of tests/e2e/Dockerfile, the same one `npm run e2e` uses on a laptop, so this
+  # job and a developer take the same screenshots. See spec/screenshots.md.
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run e2e
+      # What a changed screenshot looked like: the report has the baseline, the actual page and the
+      # diff, and the video of every run is beside it.
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: screenshots
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
