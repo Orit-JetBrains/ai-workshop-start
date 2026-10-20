@@ -1,17 +1,17 @@
 // The decisions in spec/analysis.md and spec/cli.md, checked on what the real command prints for
-// ./fixture and for a small GitHub repository answered in tests/helpers.ts. The edge cases of
-// where skills live are yours to add.
+// ./fixture, for directories the tests make, and for small GitHub repositories answered from recordings.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import { openGitHub } from '../src/core/github.ts';
 import { parseSkill } from '../src/core/parse.ts';
-import { replay } from '../src/core/replay.ts';
-import { atlas, CLI, EXAMPLE_COMMIT, FIXTURE } from './helpers.ts';
+import { run } from '../src/commands.ts';
+import { replay, type Recording } from '../src/core/replay.ts';
+import { atlas, CLI, EXAMPLE_COMMIT, FIXTURE, trees } from './helpers.ts';
 
 const fixture = await atlas(['scan', FIXTURE]);
 const example = await atlas(['scan', 'github.com/JetBrains/example']);
@@ -38,22 +38,240 @@ test('scan prints the repository, then each skill with its first sentence and pi
   );
 });
 
-test('./fixture: every skill, sorted by name, linked to its file, with a warning for the malformed one', () => {
+test('./fixture: every project skill, sorted by name, linked to its file, with its copies and warnings', () => {
   const root = pathToFileURL(FIXTURE).href;
   assert.equal(fixture.code, 0);
   assert.equal(
     fixture.stdout,
     [
-      'fixture · 3 skills',
+      'fixture · 6 skills',
       "code-style — Follow the project's code style.",
       `  ${root}/.github/skills/code-style/SKILL.md`,
+      '  also in agent/skills/code-style/SKILL.md',
       'commits — Write commit messages the way this repository does.',
       `  ${root}/.claude/skills/commits/SKILL.md`,
+      '  also in agent/skills/commits/SKILL.md',
+      'deploy',
+      `  ${root}/.claude/skills/deploy/SKILL.md`,
       'release-checklist',
       `  ${root}/.agents/skills/release-checklist/SKILL.md`,
+      'review — Review a change before it is merged (review-a).',
+      `  ${root}/.claude/skills/review-a/SKILL.md`,
+      'review — Review a change before it is merged (review-b).',
+      `  ${root}/.claude/skills/review-b/SKILL.md`,
     ].join('\n'),
   );
-  assert.match(fixture.stderr, /^warning: \.agents\/skills\/release-checklist\/SKILL\.md: malformed front matter: /);
+  assert.match(fixture.stderr, /^warning: \.agents\/skills\/release-checklist\/SKILL\.md: malformed front matter: /m);
+});
+
+test('a SKILL.md outside <root>/<directory>/ → not a skill, and a warning', () => {
+  const root = pathToFileURL(FIXTURE).href;
+  for (const path of [
+    'SKILL.md',
+    'docs/SKILL.md',
+    '.claude/skills/SKILL.md',
+    '.claude/skills/commits/references/SKILL.md',
+    'plugins/tools/.claude/skills/nested/SKILL.md',
+  ]) {
+    assert.match(fixture.stderr, new RegExp(`^warning: ${escape(path)}: not in a skill root; ignored$`, 'm'));
+    assert.doesNotMatch(fixture.stdout, new RegExp(`^  ${escape(`${root}/${path}`)}$`, 'm'));
+  }
+});
+
+test('not named exactly SKILL.md, or another file in a skill root → not a skill, no warning', () => {
+  for (const path of ['skill.md', 'lowercase', 'INDEX.md', 'examples.md']) {
+    assert.doesNotMatch(fixture.stdout, new RegExp(escape(path)));
+    assert.doesNotMatch(fixture.stderr, new RegExp(escape(path)));
+  }
+});
+
+test('the same directory in several roots → one skill at the first root, its copies listed', () => {
+  assert.equal(fixture.stdout.match(/^commits — /gm)?.length, 1);
+  assert.match(fixture.stdout, /\.claude\/skills\/commits\/SKILL\.md\n  also in agent\/skills\/commits\/SKILL\.md$/m);
+  assert.doesNotMatch(fixture.stderr, /agent\/skills\/commits/);
+});
+
+test('a copy under another name → still one skill, and a warning', () => {
+  assert.equal(fixture.stdout.match(/^code-style — /gm)?.length, 1);
+  assert.doesNotMatch(fixture.stdout, /^style/m);
+  assert.match(
+    fixture.stderr,
+    /^warning: agent\/skills\/code-style\/SKILL\.md: a copy of \.github\/skills\/code-style\/SKILL\.md, but named style$/m,
+  );
+});
+
+test('different directories with the same name → two skills, sorted by path', () => {
+  assert.match(fixture.stdout, /^review — .*\(review-a\)\.\n.*review-a\/SKILL\.md\nreview — .*\(review-b\)\.\n.*review-b\/SKILL\.md$/m);
+});
+
+test('no description → the skill is listed by name alone', () => {
+  assert.match(fixture.stdout, /^deploy\n  .*\/\.claude\/skills\/deploy\/SKILL\.md$/m);
+});
+
+test('symbolic links are not followed: a linked file, directory or skill root is skipped', async (t) => {
+  const directory = temporary(t, {
+    '.agents/skills/real/SKILL.md': '---\nname: real\ndescription: A real skill.\n---\n',
+    'elsewhere/linked/SKILL.md': '---\nname: linked\ndescription: Only reached through a link.\n---\n',
+  });
+  for (const path of ['.github/skills', 'agent/skills/file']) mkdirSync(join(directory, path), { recursive: true });
+  mkdirSync(join(directory, '.claude'));
+  symlinkSync('../.agents/skills', join(directory, '.claude/skills'));
+  symlinkSync('../../elsewhere/linked', join(directory, '.github/skills/linked'));
+  symlinkSync('../../../elsewhere/linked/SKILL.md', join(directory, 'agent/skills/file/SKILL.md'));
+  const scanned = await atlas(['scan', directory]);
+  assert.equal(scanned.code, 0, scanned.stderr);
+  assert.equal(scanned.stdout, ['repo · 1 skill', 'real — A real skill.', `  ${pathToFileURL(directory).href}/.agents/skills/real/SKILL.md`].join('\n'));
+  assert.match(scanned.stderr, /^warning: elsewhere\/linked\/SKILL\.md: not in a skill root; ignored$/);
+});
+
+test('a local directory: node_modules and .git are not part of it', async (t) => {
+  const directory = temporary(t, {
+    'node_modules/some-package/.claude/skills/theirs/SKILL.md': '---\nname: theirs\n---\n',
+    '.git/SKILL.md': '---\nname: git\n---\n',
+  });
+  const scanned = await atlas(['scan', directory]);
+  assert.equal(scanned.stdout, 'repo · 0 skills');
+  assert.equal(scanned.stderr, '');
+});
+
+test('no project skills → 0 skills, exit code 0', async (t) => {
+  const scanned = await atlas(['scan', temporary(t, { 'README.md': '# Nothing here\n' })]);
+  assert.equal(scanned.code, 0);
+  assert.equal(scanned.stdout, 'repo · 0 skills');
+});
+
+test('GitHub, code search: a SKILL.md outside the skill roots is flagged, a skill.md is not', async () => {
+  const scanned = await scanGitHub(
+    {
+      ...repository(),
+      ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md']),
+      ...search(['.claude/skills/a/SKILL.md', 'docs/SKILL.md', '.claude/skills/b/skill.md']),
+      ...file('.claude/skills/a/SKILL.md', SKILL_A),
+    },
+    'test',
+  );
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(scanned.stderr, 'warning: docs/SKILL.md: not in a skill root; ignored');
+});
+
+test('GitHub, code search: a symbolic link in a skill root is skipped, as the tree tells', async () => {
+  const scanned = await scanGitHub(
+    {
+      ...repository(),
+      ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', '.claude/skills/linked/SKILL.md ->']),
+      ...search(['.claude/skills/a/SKILL.md', '.claude/skills/linked/SKILL.md']),
+      ...file('.claude/skills/a/SKILL.md', SKILL_A),
+    },
+    'test',
+  );
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(scanned.stderr, '');
+});
+
+test('GitHub, code search past 1000 results: no skill is lost, and a warning says what is not flagged', async () => {
+  const vendored = Array.from({ length: 1000 }, (_, i) => `third_party/p${i}/SKILL.md`);
+  const pages: Recording = {};
+  for (let page = 1; page <= 10; page++) {
+    pages[`${API}/search/code?q=filename:SKILL.md+repo:JetBrains/edge&per_page=100&page=${page}`] = {
+      status: 200,
+      body: { total_count: 1001, items: vendored.slice((page - 1) * 100, page * 100).map((path) => ({ path })) },
+    };
+  }
+  const scanned = await scanGitHub(
+    { ...repository(), ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md']), ...pages, ...file('.claude/skills/a/SKILL.md', SKILL_A) },
+    'test',
+  );
+  assert.equal(scanned.stdout, ONLY_A);
+  const warnings = scanned.stderr.split('\n');
+  assert.equal(warnings[0], 'warning: code search stops at 1000 SKILL.md files; the others outside .agents/skills, .claude/skills, .github/skills, agent/skills are not flagged');
+  assert.equal(warnings.length, 1001);
+});
+
+test('GitHub, the tree: a symbolic link is skipped, a SKILL.md outside the skill roots is flagged', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', '.github/skills ->', '.agents/skills/linked/SKILL.md ->', 'docs/SKILL.md']),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+  });
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(scanned.stderr, 'warning: docs/SKILL.md: not in a skill root; ignored');
+});
+
+test('GitHub, a tree too large for one answer: no skill is lost, and one warning says what is not flagged', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', 'docs/SKILL.md'], ['']),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+  });
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(
+    scanned.stderr,
+    'warning: the tree is too large to list at once; a SKILL.md outside .agents/skills, .claude/skills, .github/skills, agent/skills is not flagged (GITHUB_TOKEN searches everywhere)',
+  );
+});
+
+test('GitHub, a skill root too large for one answer: each skill directory is listed on its own, no skill is lost', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', '.claude/skills/a/references/big.md', '.claude/skills/INDEX.md'], ['', '.claude/skills']),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+  });
+  assert.equal(scanned.stdout, ONLY_A);
+});
+
+test('listed but not readable at the scanned commit → a warning, skipped', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/gone/SKILL.md']),
+    [raw('.claude/skills/gone/SKILL.md')]: { status: 404, body: '404: Not Found' },
+  });
+  assert.equal(scanned.code, 0);
+  assert.equal(scanned.stdout, 'JetBrains/edge · 0 skills');
+  assert.equal(scanned.stderr, 'warning: .claude/skills/gone/SKILL.md: listed, but not found at the scanned commit; skipped');
+});
+
+test('the first root\'s file not readable → the skill is the first readable copy', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.agents/skills/a/SKILL.md', '.claude/skills/a/SKILL.md']),
+    [raw('.agents/skills/a/SKILL.md')]: { status: 404, body: '404: Not Found' },
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+  });
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(scanned.stderr, 'warning: .agents/skills/a/SKILL.md: listed, but not found at the scanned commit; skipped');
+});
+
+test('a copy that GitHub fails to answer → a warning, the scan goes on', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', 'agent/skills/a/SKILL.md']),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+    [raw('agent/skills/a/SKILL.md')]: { status: 502, body: 'Bad Gateway' },
+  });
+  assert.equal(scanned.code, 0);
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(scanned.stderr, `warning: agent/skills/a/SKILL.md: GitHub answered 502 for ${raw('agent/skills/a/SKILL.md')}; skipped`);
+});
+
+test('no file of a skill that GitHub answers → the error, exit code 1', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md']),
+    [raw('.claude/skills/a/SKILL.md')]: { status: 502, body: 'Bad Gateway' },
+  });
+  assert.equal(scanned.code, 1);
+  assert.equal(scanned.stderr, `GitHub answered 502 for ${raw('.claude/skills/a/SKILL.md')}`);
+});
+
+test('a copy with malformed front matter → its warning, but no other name to compare', async (t) => {
+  const directory = temporary(t, {
+    '.claude/skills/commits/SKILL.md': '---\nname: commit-messages\ndescription: Commit messages.\n---\n',
+    'agent/skills/commits/SKILL.md': '---\nname: [unclosed\n---\n',
+  });
+  const scanned = await atlas(['scan', directory]);
+  assert.match(scanned.stdout, /^commit-messages — Commit messages\.$/m);
+  assert.match(scanned.stderr, /^warning: agent\/skills\/commits\/SKILL\.md: malformed front matter: /);
+  assert.doesNotMatch(scanned.stderr, /a copy of/);
 });
 
 test('the CLI prints the result at once and stores nothing', (t) => {
@@ -92,3 +310,63 @@ test('rate limit → a message that asks for GITHUB_TOKEN', async () => {
     message: 'GitHub rate limit reached; set GITHUB_TOKEN',
   });
 });
+
+const API = 'https://api.github.com';
+const COMMIT = 'e1f0e1f0e1f0e1f0e1f0e1f0e1f0e1f0e1f0e1f0';
+
+/** What GitHub answers about JetBrains/edge before its files are listed. */
+function repository(): Recording {
+  return {
+    [`${API}/repos/JetBrains/edge`]: { status: 200, body: { full_name: 'JetBrains/edge', default_branch: 'main' } },
+    [`${API}/repos/JetBrains/edge/commits/main`]: { status: 200, body: { sha: COMMIT } },
+  };
+}
+
+const SKILL_A = '---\nname: a\ndescription: Skill a.\n---\n';
+const ONLY_A = ['JetBrains/edge · 1 skill', 'a — Skill a.', `  https://github.com/JetBrains/edge/blob/${COMMIT}/.claude/skills/a/SKILL.md`].join('\n');
+
+function raw(path: string): string {
+  return `https://raw.githubusercontent.com/JetBrains/edge/${COMMIT}/${path}`;
+}
+
+function file(path: string, text: string): Recording {
+  return { [raw(path)]: { status: 200, body: text } };
+}
+
+/** Code search, answering these paths on one page. */
+function search(paths: string[]): Recording {
+  return {
+    [`${API}/search/code?q=filename:SKILL.md+repo:JetBrains/edge&per_page=100&page=1`]: {
+      status: 200,
+      body: { total_count: paths.length, items: paths.map((path) => ({ path })) },
+    },
+  };
+}
+
+/** `skill-atlas scan github.com/JetBrains/edge`, with GitHub answering from the recording. */
+async function scanGitHub(recording: Recording, token?: string) {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const code = await run(['scan', 'github.com/JetBrains/edge'], {
+    open: (input) => openGitHub(input, { fetch: replay(recording), token }),
+    print: (text) => stdout.push(text),
+    error: (text) => stderr.push(text),
+  });
+  return { code, stdout: stdout.join('\n'), stderr: stderr.join('\n') };
+}
+
+/** A directory named `repo` with these files, removed after the test. */
+function temporary(t: TestContext, files: Record<string, string>): string {
+  const parent = mkdtempSync(join(tmpdir(), 'skill-atlas-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const directory = join(parent, 'repo');
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(directory, path)), { recursive: true });
+    writeFileSync(join(directory, path), text);
+  }
+  return directory;
+}
+
+function escape(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
