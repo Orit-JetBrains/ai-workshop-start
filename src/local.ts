@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { AtlasError } from './core/errors.ts';
 import type { Source } from './core/scan.ts';
 
@@ -22,7 +24,24 @@ export async function openDirectory(input: string): Promise<Source> {
     paths,
     warnings: [],
     read: (path) => readFile(join(root, path)).then((bytes) => new Uint8Array(bytes), () => undefined),
+    updated: (path) => lastCommitDate(root, path),
   };
+}
+
+const git = promisify(execFile);
+
+/**
+ * The last commit that touched the file, as `git log` tells it. A directory that is not a git
+ * checkout — or a machine with no git at all — has no history to read a date from: none, rather
+ * than a failed scan, as the files themselves are read whatever git says.
+ */
+async function lastCommitDate(root: string, path: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await git('git', ['-C', root, 'log', '-1', '--format=%cI', '--', path]);
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Every regular file under the directory, as a path relative to the root. */

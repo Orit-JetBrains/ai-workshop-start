@@ -92,9 +92,13 @@ export class Atlas {
     return items.locator('.name').allTextContents();
   }
 
-  /** The skill chosen on the right: the path it was read from, and its SKILL.md. */
-  async chosen(): Promise<{ path: string; text: string }> {
-    return { path: (await this.file.locator('h1').textContent()) ?? '', text: (await this.file.locator('pre').textContent()) ?? '' };
+  /** The skill chosen on the right: the path it was read from, its date, and its SKILL.md. */
+  async chosen(): Promise<{ path: string; updated: string; text: string }> {
+    return {
+      path: (await this.file.locator('h1').textContent()) ?? '',
+      updated: (await this.file.locator('.updated').textContent()) ?? '',
+      text: (await this.file.locator('pre').textContent()) ?? '',
+    };
   }
 }
 

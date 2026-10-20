@@ -10,10 +10,11 @@ What it shows, in order:
 2. **The filter, on an organization's list.** `sdk` narrows it to `3 of 6` — the repositories'
    names; emptying the field restores the list.
 3. **A repository chosen from the organization.** `inspector` goes into the field and its 11
-   skills replace the list, each with its name, description and link.
+   skills replace the list, each with its name, description, last updated date and link.
 4. **The filter, on the skills.** `issue` narrows it to `3 of 11`, matching the name or the
-   description.
-5. **A skill chosen** — its SKILL.md, the whole file, front matter included.
+   description — not the date.
+5. **A skill chosen** — its last updated date, and its SKILL.md, the whole file, front matter
+   included.
 
 Every step above is also a test: `npm run test:demo` replays this walkthrough in a browser against a
 real `skill-atlas serve`, over a recording of the same scan, in the same 1280×760 window with

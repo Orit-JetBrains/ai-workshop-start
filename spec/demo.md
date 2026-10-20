@@ -27,9 +27,10 @@ Each is one test, and all five again as one, end to end — the video's order:
    kotlin-sdk 2, python-sdk 1, servers 11
 2. **The filter, on an organization's list.** `sdk` → `3 of 6`, the three SDK repositories; emptying it → `6 of 6`
 3. **A repository chosen from the organization.** `inspector` → its URL in the field, its **11 skills** in the
-   list, each with its name, description and link; the filter emptied
+   list, each with its name, description, **last updated** date and link; the filter emptied
 4. **The filter, on the skills.** `issue` → `3 of 11`: issue-create, issue-triage, and pr-flow on its description
-5. **A skill chosen** → its SKILL.md, the whole file, front matter included; the first skill is chosen by the scan
+5. **A skill chosen** → its **last updated** date and its SKILL.md, the whole file, front matter included; the
+   first skill is chosen by the scan
 Two more hold the run itself to the spec: the viewport and the fonts are the demo's, and a reload
 starts from an empty page.
 ## Screenshots

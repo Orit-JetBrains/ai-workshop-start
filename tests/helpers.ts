@@ -11,6 +11,10 @@ export const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 /** The commit GitHub answers for JetBrains/example. */
 export const EXAMPLE_COMMIT = '5ab6270ab772d113e8ad52ebfcaa0109c522ae00';
 
+/** When a recorded repository's files were last changed, and the day the scan prints for them. */
+export const SKILL_DATE = '2026-02-11T09:30:00Z';
+export const SKILL_DAY = '2026-02-11';
+
 /** What GitHub answers for a small repository, JetBrains/example, with one skill. */
 const EXAMPLE: Recording = {
   'https://api.github.com/repos/JetBrains/example': { status: 200, body: { full_name: 'JetBrains/example', default_branch: 'main' } },
@@ -29,9 +33,26 @@ const EXAMPLE: Recording = {
 const github = replay(EXAMPLE);
 
 /**
+ * What GitHub answers for the last commit that touched each of these paths: `SKILL_DATE`, unless the
+ * path is given a date of its own, and no commit at all for one given an empty one.
+ */
+export function lastCommits(id: string, commit: string, paths: Record<string, string>): Recording {
+  const recording: Recording = {};
+  for (const [path, date] of Object.entries(paths)) {
+    const encoded = path.split('/').map(encodeURIComponent).join('/');
+    recording[`https://api.github.com/repos/${id}/commits?sha=${commit}&path=${encoded}&per_page=1`] = {
+      status: 200,
+      body: date ? [{ commit: { committer: { date } } }] : [],
+    };
+  }
+  return recording;
+}
+
+/**
  * What GitHub answers for the trees of a repository with these files: each directory's, alone and
- * recursive. A path ending in ` ->` is a symbolic link; the directories in `truncated` are too large
- * for one recursive answer (`''` is the repository's root).
+ * recursive, and the last commit of every file, `SKILL_DATE`. A path ending in ` ->` is a symbolic
+ * link; the directories in `truncated` are too large for one recursive answer (`''` is the
+ * repository's root).
  */
 export function trees(id: string, commit: string, paths: string[], truncated: string[] = []): Recording {
   const entries = paths.map((path) => (path.endsWith(' ->') ? { path: path.slice(0, -3), mode: '120000' } : { path, mode: '100644' }));
@@ -54,7 +75,7 @@ export function trees(id: string, commit: string, paths: string[], truncated: st
     recording[url] = { status: 200, body: { truncated: false, tree: all.filter((item) => !item.path.includes('/')) } };
     recording[`${url}?recursive=1`] = { status: 200, body: { truncated: truncated.includes(directory), tree: truncated.includes(directory) ? [] : all } };
   }
-  return recording;
+  return { ...recording, ...lastCommits(id, commit, Object.fromEntries(entries.map(({ path }) => [path, SKILL_DATE]))) };
 }
 
 /** `skill-atlas <args>`, as the CLI runs it, with GitHub answering from EXAMPLE. */

@@ -42,6 +42,8 @@ function keep(url, status, body) {
   if (/\/(orgs|users)\/[^/]+\/repos\?/.test(url)) return value.map(({ full_name, default_branch }) => ({ full_name, default_branch }));
   if (/\/repos\/[^/]+\/[^/]+$/.test(url)) return { full_name: value.full_name, default_branch: value.default_branch };
   if (/\/commits\//.test(url)) return { sha: value.sha };
+  // A skill's last commit: its date is all the scan reads of it.
+  if (/\/commits\?/.test(url)) return value.map(({ commit }) => ({ commit: { committer: { date: commit?.committer?.date } } }));
   if (/\/git\/trees\//.test(url)) {
     return { truncated: value.truncated, tree: value.tree.map(({ path, mode, type, sha }) => ({ path, mode, type, sha })) };
   }

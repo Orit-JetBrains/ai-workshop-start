@@ -1,6 +1,6 @@
 import { AtlasError } from './errors.ts';
 import { findSkills, type SkillFile } from './find.ts';
-import { sortRepositories, sortSkills, type Repository, type RepositorySkills, type Skill } from './model.ts';
+import { newestDay, sortRepositories, sortSkills, type Repository, type RepositorySkills, type Skill } from './model.ts';
 import { parseSkill, type ParsedSkill } from './parse.ts';
 
 /** A repository to scan: its files, and how to read them. */
@@ -12,6 +12,11 @@ export type Source = {
   warnings: string[];
   /** The file's bytes, or undefined if it is not there. */
   read(path: string): Promise<Uint8Array | undefined>;
+  /**
+   * When the file was last changed, as an ISO-8601 instant, or undefined when the repository has no
+   * history that says. A source that cannot tell at all leaves this out, and the skills have no date.
+   */
+  updated?(path: string): Promise<string | undefined>;
 };
 
 export type ScanResult = { repository: Repository; skills: Skill[]; warnings: string[] };
@@ -109,6 +114,10 @@ async function readSkill(source: Source, file: SkillFile): Promise<{ skill?: Ski
     const copyName = copy.parsed.name ?? file.name;
     if (!copy.parsed.warning && copyName !== name) warnings.push(`${copy.path}: a copy of ${main.path}, but named ${copyName}`);
   }
+  // The date of every file of the skill, the newest of which is the skill's. On GitHub each one is
+  // a request, so the files are asked about at the same time, as their contents were.
+  const dates = await Promise.all([main, ...copies].map((each) => readDate(source, each.path)));
+  warnings.push(...dates.flatMap((date) => date.warnings));
   const skill: Skill = {
     id: `${source.repository.id}:${main.path}`,
     repository: source.repository.id,
@@ -116,9 +125,25 @@ async function readSkill(source: Source, file: SkillFile): Promise<{ skill?: Ski
     name,
     description: main.parsed.description,
     commit: source.repository.commit,
+    updatedAt: newestDay(dates.map((date) => date.updated)),
     copies: copies.map((copy) => copy.path),
   };
   return { skill, warnings };
+}
+
+/**
+ * When a file was last changed. A date is not the skill itself: a source that cannot answer for one
+ * costs a warning and an empty date, not the scan. A rate limit is the exception — every request
+ * after it would fail the same way, dates and files alike, so it ends the scan as it always has.
+ */
+async function readDate(source: Source, path: string): Promise<{ updated?: string; warnings: string[] }> {
+  if (!source.updated) return { warnings: [] };
+  try {
+    return { updated: await source.updated(path), warnings: [] };
+  } catch (error) {
+    if (error instanceof AtlasError && /rate limit/i.test(error.message)) throw error;
+    return { warnings: [`${path}: ${error instanceof Error ? error.message : String(error)}; no date`] };
+  }
 }
 
 type Read = { path: string; parsed?: ParsedSkill; warnings: string[]; error?: unknown };

@@ -117,6 +117,7 @@ const PAGE = `<!doctype html>
   li.skill[aria-selected="true"] { background: #4a90e233; }
   .name { font-weight: 600; }
   .description, .copies, .hint { font-size: .9rem; opacity: .8; }
+  .updated { font-size: .8rem; opacity: .7; }
   .link { font-size: .8rem; word-break: break-all; }
   .warnings { margin-top: 1rem; font-size: .85rem; color: #b8860b; }
   .error { color: #d33; }
@@ -154,10 +155,16 @@ function element(tag, className, text) {
   return node;
 }
 
+// The date the skill was last changed, as the list and the chosen file both show it; nothing at
+// all for a skill with no date.
+function updated(skill) {
+  return skill.updatedAt ? [element('div', 'updated', 'updated ' + skill.updatedAt)] : [];
+}
+
 function choose(item, skill) {
   for (const other of results.querySelectorAll('li.skill')) other.setAttribute('aria-selected', 'false');
   item.setAttribute('aria-selected', 'true');
-  file.replaceChildren(element('h1', '', skill.path), element('pre', '', skill.text));
+  file.replaceChildren(element('h1', '', skill.path), ...updated(skill), element('pre', '', skill.text));
 }
 
 // Every skill, or repository, of the last scan: the item showing it and the texts the filter looks
@@ -223,6 +230,7 @@ async function scan(input) {
     item.setAttribute('role', 'option');
     item.append(element('div', 'name', skill.name));
     if (skill.description) item.append(element('div', 'description', skill.description));
+    item.append(...updated(skill));
     const link = element('a', 'link', skill.link);
     link.href = skill.link;
     link.target = '_blank';
