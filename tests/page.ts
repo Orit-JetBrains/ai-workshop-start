@@ -118,8 +118,8 @@ export async function openPage(address: string): Promise<Page> {
   ] as const) {
     byId.set(id, new Element(tag));
   }
-  // The page serves the filter hidden until a scan has drawn a list.
-  byId.get('search')!.hidden = true;
+  // Shown or hidden as the page serves it.
+  byId.get('search')!.hidden = /<div id="search"[^>]*\shidden[\s>]/.test(html);
 
   const context = createContext({
     document: {
