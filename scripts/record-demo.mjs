@@ -15,6 +15,8 @@ import { scan, scanOrganization } from '../src/core/scan.ts';
 /** What the demo scans, in its order: the organization, then the repository chosen from its list. */
 export const ORGANIZATION = 'github.com/modelcontextprotocol';
 export const REPOSITORY = 'https://github.com/modelcontextprotocol/inspector';
+/** A repository GitHub does not have: its 404 is the page's error, and part of the demo's data. */
+export const MISSING = 'https://github.com/modelcontextprotocol/does-not-exist';
 
 const file = fileURLToPath(new URL('../tests/demo/github.json', import.meta.url));
 
@@ -56,6 +58,15 @@ for (const repository of organization.withSkills) console.log(`  ${repository.na
 
 const repository = await scan(await openGitHub(REPOSITORY, options));
 console.log(`${repository.repository.id} · ${repository.skills.length} skills`);
+
+// The error the page shows, recorded like any other answer: GitHub's own 404, not a made-up one.
+try {
+  await scan(await openGitHub(MISSING, options));
+  console.error(`${MISSING} exists after all: the error screen needs another repository.`);
+  process.exit(1);
+} catch (error) {
+  console.log(`${MISSING} · ${error.message}`);
+}
 
 // Sorted by URL: a rerun that changes one answer shows that answer in the diff, not a new order.
 const sorted = Object.fromEntries(Object.keys(recording).sort().map((url) => [url, recording[url]]));

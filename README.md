@@ -34,7 +34,8 @@ demo's in a browser. The browser is Playwright's, installed once with `npx playw
 `npm run test:demo` runs the demo — the video below — as deterministic tests: the same recorded data,
 the same 1280×760 window and the same bundled fonts on any machine, and every run recorded as a
 video, a trace and a screenshot under `test-results/<run>/`. On CI, each step's screen must match
-its image in `tests/demo/screenshots/`; to accept a change, label the pull request
+its image in `tests/demo/screenshots/` to the pixel — one changed pixel is a failure, which a test
+of its own keeps true. To accept a change, label the pull request
 `accept screenshots`. See [spec/demo.md](spec/demo.md);
 `npm run test:demo:record` rewrites the recorded data with a fresh scan of live GitHub.
 

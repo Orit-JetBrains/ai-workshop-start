@@ -33,6 +33,13 @@ export default defineConfig({
   retries: 0,
   forbidOnly: !!process.env.CI,
   reporter: [['list'], ['html', { outputFolder: `playwright-report/${run}`, open: 'never' }]],
+  expect: {
+    // One changed pixel is a failure. Playwright allows a fifth of a pixel's colour to differ by
+    // default, which is a sensible tolerance for a page whose rendering is not pinned; everything
+    // about this one is pinned, so a difference means the page changed, and the run should say so
+    // rather than decide how much of a change matters.
+    toHaveScreenshot: { maxDiffPixels: 0, maxDiffPixelRatio: 0, threshold: 0 },
+  },
   use: {
     baseURL: `http://127.0.0.1:${port}/`,
     viewport: VIEWPORT,
