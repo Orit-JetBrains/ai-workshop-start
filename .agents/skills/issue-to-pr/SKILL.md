@@ -6,7 +6,8 @@ description: Take a GitHub issue to an open pull request with green CI. Read the
 # Issue to PR
 
 Take a single GitHub issue to an **open pull request with green CI**: understand
-it, implement it with tests, open the PR, and leave it open.
+it, implement it with tests, open the PR, and leave it open for the review
+automation that follows.
 
 **Never merge.** This skill ends at the open PR. Opening it triggers a separate
 code-review automation, and the review and the merge are that automation's and
@@ -50,7 +51,7 @@ with `AGENTS.md`, `AGENTS.md` wins.
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-## 4. Get CI green, then hand off
+## 4. Get CI green
 
 The definition of done requires a **green CI build**, so the PR is not ready
 until checks pass:
@@ -59,7 +60,25 @@ until checks pass:
 2. If any check fails, read the logs, fix the branch, push, and re-run the
    tests locally. Repeat until CI is green. Never leave the PR red; never skip
    or disable a test to get there.
-3. Report the PR link and the state of its checks plainly, and stop.
+3. Report the PR link and the state of its checks plainly.
+
+## 5. Hand the PR off — don't poll for the review
+
+Once CI is green, this run is over. **Do not promise to keep checking the PR**
+and do not schedule wake-ups to poll it: a finished Air session is not
+continued, so any "I'll check back in a few minutes" is a promise the harness
+cannot keep.
+
+The follow-up is a separate automation's job:
+
+- The **code-review** automation ([../code-review/](../code-review/)) reviews
+  the PR that this skill's `gh pr create` triggered.
+- The **address-review** automation ([../address-review/](../address-review/))
+  picks up the review comments and answers them on a later run.
+
+So end the run by stating the facts and nothing more: the PR link, its check
+state, and that it is now waiting on review. Report only what is already true —
+never a future check you will not be awake to make.
 
 **Do not merge, and do not close the issue by hand.** Do not run
 `gh pr merge` — not with `--auto` either, which merges just the same once checks
