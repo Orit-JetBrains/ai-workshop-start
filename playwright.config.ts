@@ -20,6 +20,13 @@ export const VIEWPORT = { width: 1280, height: 760 };
 export default defineConfig({
   testDir: './tests/demo',
   outputDir: `test-results/${run}`,
+  // Each step's screen, compared with tests/demo/screenshots/<step>.png. Those are CI's: Linux, and
+  // the Chromium the workflow installs. Another machine renders the same page a few pixels apart, so
+  // it skips the comparison rather than fail on it; CI compares, and a missing image fails there.
+  // A new image is accepted by the "Accept screenshots" workflow, which renders it on CI too.
+  snapshotPathTemplate: '{testDir}/screenshots/{arg}{ext}',
+  ignoreSnapshots: !process.env.CI,
+  updateSnapshots: 'none',
   fullyParallel: false,
   // One worker, no retries: a flaky pass would hide exactly what these tests are for.
   workers: 1,

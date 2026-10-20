@@ -1,0 +1,68 @@
+# Accepts a pull request's new screenshots as the baseline. CI compares each demo step's screen with
+# tests/demo/screenshots/; when a change means to change them, CI fails and its artifact holds the
+# expected, actual and diff images. Once they are reviewed, label the pull request
+# "accept screenshots": this renders them again on CI's own Linux and Chromium and commits them to
+# the pull request's branch.
+#
+# CI then runs on that commit. A push made with the workflow's own token is held by GitHub until
+# someone approves it on the pull request ("Approve workflows to run"), and this says so in a
+# comment. With an ACCEPT_SCREENSHOTS_TOKEN secret, a fine-grained token with read and write access
+# to this repository's contents, the push is that token's, and CI starts on it as on any push.
+name: Accept screenshots
+on:
+  pull_request:
+    types: [labeled]
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: accept-screenshots-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  accept:
+    # Only this repository's own branches: a fork's code never runs with a token that can push.
+    if: github.event.label.name == 'accept screenshots' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+      PR: ${{ github.event.pull_request.number }}
+      GH_TOKEN: ${{ github.token }}
+      HAS_TOKEN: ${{ secrets.ACCEPT_SCREENSHOTS_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.ACCEPT_SCREENSHOTS_TOKEN || github.token }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium ffmpeg
+      # The demo's tests, writing each screen that differs from its image, or has none yet. Every
+      # other assertion still holds them: a step that fails for any other reason commits nothing.
+      - name: Render the screenshots
+        run: npx playwright test --update-snapshots=changed
+      - name: Commit them to the pull request
+        run: |
+          git add tests/demo/screenshots
+          if git diff --cached --quiet; then
+            echo "The screenshots already match their images: nothing to accept."
+            exit 0
+          fi
+          git diff --cached --stat
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "Accept the new screenshots" -m "Rendered on CI by the Accept screenshots workflow, run ${{ github.run_id }}."
+          git push origin "HEAD:$BRANCH"
+          echo "PUSHED=1" >> "$GITHUB_ENV"
+      # Without the secret, CI on the new commit waits for approval: say so where it will be seen.
+      - name: Ask for CI to be approved
+        if: env.PUSHED == '1' && env.HAS_TOKEN != 'true'
+        run: |
+          gh pr comment "$PR" --body "New screenshots accepted in $(git rev-parse --short HEAD). GitHub holds CI on that commit until it is approved: **Approve workflows to run**, below. An \`ACCEPT_SCREENSHOTS_TOKEN\` secret makes it start on its own; see \`.github/workflows/accept-screenshots.yml\`."
+          echo "::notice::CI on the accepted commit waits for approval on the pull request."
+      - name: Take the label off
+        if: always()
+        run: gh pr edit "$PR" --remove-label 'accept screenshots'
