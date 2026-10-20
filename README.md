@@ -35,5 +35,6 @@ with checked-in output, run `npm run test:real`. The command uses `GITHUB_TOKEN`
 or your existing `gh` login. It shows a diff if a result changes. Run
 `npm run test:real:update` to refresh the snapshots after reviewing the changes.
 
+- [docs/demo/](docs/demo/): a short video of the organization scan and the filter, in the web view.
 - [spec/](spec/): what it does. [AGENTS.md](AGENTS.md): the definition of done.
 - [fixture/](fixture/README.md): a small repository for the tests.
