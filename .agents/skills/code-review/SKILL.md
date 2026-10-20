@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and auto-merge, so an unreviewed PR is never mistaken for a clean one.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and merge it yourself once its checks are green, so an unreviewed PR is never mistaken for a clean one.
 ---
 
 # Code review
@@ -43,10 +43,16 @@ After the comments are written, apply each suggested fix to the working tree:
 
 ## Merging
 
-Never merge — or enable auto-merge on — a pull request while any review comment
-is unaddressed. Before merging, list the PR's review threads and confirm every
-one is resolved: fixed by a pushed commit, or explicitly dismissed with a reply
-saying why it is not a defect. Treat an open, unanswered thread as blocking,
+A clean review ends with the pull request **merged**. Do the merge yourself in
+the same run — do not hand it back to the user, and do not leave it to GitHub's
+auto-merge: that is off for this repository (`allow_auto_merge: false`), so
+`gh pr merge --auto` fails, and even with it on GitHub refuses to queue a PR
+that is already green, which is the normal case here. Merge directly instead.
+
+Never merge a pull request while any review comment is unaddressed. Before
+merging, list the PR's review threads and confirm every one is resolved: fixed
+by a pushed commit, or explicitly dismissed with a reply saying why it is not a
+defect. Treat an open, unanswered thread as blocking,
 including comments from earlier reviewers and bots, not just your own.
 
 ```bash
@@ -58,20 +64,31 @@ gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$
 If the review finds nothing to fix:
 
 - When the target is a pull request **and every review thread is resolved**,
-  first **mark the review cleared** with a 🟢 approval, then enable auto-merge:
+  first **mark the review cleared** with a 🟢 approval, then wait for the checks
+  and merge:
 
   ```bash
   gh pr review <pr> --approve --body "🟢 Code review clean — no findings."
-  gh pr merge <pr> --auto --squash
+  gh pr checks <pr> --watch     # green before the merge, not after
+  gh pr merge <pr> --squash --delete-branch
   ```
 
-  Say that you cleared it and enabled auto-merge.
+  `gh pr checks --watch` returns as soon as the checks have finished, so a
+  green build is cheap to confirm and there is no reason to skip it.
+- If a check fails, do not merge: report which one, with its log, and stop.
 - If any thread is still open, do not merge: list what is unresolved and stop.
 - Otherwise (not a PR) just say the review is clean in one line and stop.
 
+Then confirm the PR is merged and report it plainly — a run that reviewed a
+clean PR and left it open has not finished its job.
+
 The 🟢 approval is the signal that a review actually ran and found nothing: an
-absence of comments alone does **not** mean a PR was reviewed. Never merge — or
-auto-merge — a PR that has no 🟢 clean marker and no resolved findings; a PR with
-neither has simply not been reviewed yet. Only post the 🟢 on a genuinely empty
-review — never when a finding was skipped as too risky to fix, and never while
-comments remain unaddressed.
+absence of comments alone does **not** mean a PR was reviewed. Never merge a PR
+that has no 🟢 clean marker and no resolved findings; a PR with neither has
+simply not been reviewed yet. Only post the 🟢 on a genuinely empty review —
+never when a finding was skipped as too risky to fix, and never while comments
+remain unaddressed.
+
+One exception: a PR whose body asks not to be merged — a review-only replay of
+already-merged code, for instance — gets the 🟢 and no merge. Say why you left
+it open.
