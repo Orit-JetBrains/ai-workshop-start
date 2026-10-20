@@ -70,6 +70,19 @@ test('the page: a filter above the skills list, shown once a scan has drawn one'
   assert.equal(page.count(), '6 of 6');
 });
 
+// The DOM below models `hidden` as a property, with no stylesheet behind it, so it cannot see that
+// `#search { display: flex }` overrides the browser's own `[hidden] { display: none }` — an author
+// display rule wins over the user agent's. The rule that puts `hidden` back is checked on the CSS
+// the server actually serves; without it the filter is on screen before there is a list to filter.
+test('the filter is laid out without defeating its own hidden attribute', async () => {
+  const page = await get('/');
+  assert.match(page.body, /#search\[hidden\]\s*\{[^}]*display:\s*none/);
+  const [, css] = /<style>([\s\S]*?)<\/style>/.exec(page.body) ?? [];
+  assert.ok(css, 'the page has a stylesheet');
+  // The override must come after the rule it overrides: the two have equal specificity.
+  assert.ok(css.indexOf('#search[hidden]') > css.indexOf('#search {'), '#search[hidden] must follow #search');
+});
+
 test('typing filters the list to the skills whose name or description matches', async () => {
   const page = await openPage(address);
   await page.scan(FIXTURE);
