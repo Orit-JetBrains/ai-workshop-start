@@ -58,11 +58,13 @@ async function searchPaths(github: Client, id: string): Promise<string[]> {
 
 type Tree = { truncated: boolean; tree: { path: string; mode: string; type: string; sha: string }[] };
 
-/** The whole tree at once, or only the skill roots when it is too large for one answer. */
+/** The whole tree at once, or only the skill roots when it is too large for one answer: no skill is lost. */
 async function treePaths(github: Client, id: string, sha: string, warnings: string[]): Promise<string[]> {
   const tree = await github.json<Tree>(`${API}/repos/${id}/git/trees/${sha}?recursive=1`);
   if (!tree.truncated) return files(tree);
-  warnings.push(`the tree is too large to list at once; looked only in ${SKILL_ROOTS.join(', ')} (GITHUB_TOKEN searches everywhere)`);
+  warnings.push(
+    `the tree is too large to list at once; a SKILL.md outside ${SKILL_ROOTS.join(', ')} is not flagged (GITHUB_TOKEN searches everywhere)`,
+  );
   const paths: string[] = [];
   for (const root of SKILL_ROOTS) {
     const rootSha = await directory(github, id, sha, root);

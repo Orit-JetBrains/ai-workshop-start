@@ -1,7 +1,7 @@
 # Skill Atlas
 
-Every agent skill in a repository: `./skill-atlas scan` finds each `SKILL.md` and prints its name,
-description and link.
+Every agent skill in a repository: `./skill-atlas scan` finds each project skill, a `SKILL.md`
+in `.agents/skills`, `.claude/skills`, `.github/skills` or `agent/skills`, and prints its name, description and link.
 
 ```console
 $ npm ci
