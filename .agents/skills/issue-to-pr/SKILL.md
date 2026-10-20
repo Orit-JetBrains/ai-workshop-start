@@ -69,12 +69,12 @@ and do not schedule wake-ups to poll it: a finished Air session is not
 continued, so any "I'll check back in a few minutes" is a promise the harness
 cannot keep.
 
-The follow-up is a separate automation's job:
-
-- The **code-review** automation ([../code-review/](../code-review/)) reviews
-  the PR that this skill's `gh pr create` triggered.
-- The **address-review** automation ([../address-review/](../address-review/))
-  picks up the review comments and answers them on a later run.
+The follow-up is the **code-review** automation's job
+([../code-review/](../code-review/)), which this skill's `gh pr create`
+triggers. That skill owns the whole rest of the path: it reviews the diff,
+leaves an inline comment per finding, applies each suggested fix itself, and
+merges once every thread is resolved and the checks are green. Nothing is left
+here for this run to come back to.
 
 So end the run by stating the facts and nothing more: the PR link, its check
 state, and that it is now waiting on review. Report only what is already true —
