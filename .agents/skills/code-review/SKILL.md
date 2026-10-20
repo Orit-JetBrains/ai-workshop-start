@@ -40,6 +40,31 @@ After the comments are written, apply each suggested fix to the working tree:
    skip the edit, and say why.
 3. When done, show the resulting diff and run the project's tests/build so the
    changes are verified, not just written.
+4. Before pushing the fixes to the PR, follow
+   [Adding to an existing PR](#adding-to-an-existing-pr-check-it-is-still-open):
+   a PR merged in the meantime gets its fixes in a new PR, not more commits.
+
+## Adding to an existing PR: check it is still open
+
+Before pushing any commit meant for an existing pull request, check its state:
+
+```bash
+gh pr view <pr> --json state,headRefName -q '.state + " " + .headRefName'
+```
+
+- **`OPEN`**: push to its branch. First confirm you are on that branch
+  (`git branch --show-current` equals `headRefName`): the environment can switch
+  the checkout between commits, and a commit on another branch never reaches the PR.
+- **`MERGED` or `CLOSED`**: **do not add code to it.** Commits pushed to a
+  merged PR's branch never reach `main`, and the PR page hides them. Instead:
+  1. `git fetch origin && git switch -c <short-slug> origin/<main branch>`
+  2. Bring the change over: `git cherry-pick <commits>`, or make it again.
+  3. Run the tests, push, and open a **new PR** with `gh pr create`. Say in its
+     body that it follows up the merged `#<pr>` and why.
+
+After pushing, confirm the commit is on the PR, not just on some branch:
+`gh pr view <pr> --json commits -q '.commits[].oid'` must include `git rev-parse HEAD`.
+A green check proves nothing until it ran on that commit.
 
 ## Merging
 
