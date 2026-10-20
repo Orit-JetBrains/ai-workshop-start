@@ -7,7 +7,7 @@ export type Fetch = (url: string, init?: { headers?: Record<string, string> }) =
 
 export type GitHubOptions = {
   fetch: Fetch;
-  /** With a token, skills are found through code search; without it, through the tree. */
+  /** With a token, the SKILL.md files outside the skill roots are found through code search; without it, through the tree. */
   token?: string;
 };
 
@@ -32,7 +32,7 @@ export async function openGitHub(input: string, options: GitHubOptions): Promise
   const id = info.full_name;
   const { sha } = await github.json<{ sha: string }>(`${API}/repos/${id}/commits/${encodePath(info.default_branch)}`);
   const warnings: string[] = [];
-  const paths = options.token ? await searchPaths(github, id) : await treePaths(github, id, sha, warnings);
+  const paths = await listPaths(github, id, sha, Boolean(options.token), warnings);
   const [organization, repo] = id.split('/');
   return {
     repository: { id, organization, name: repo, url: `https://github.com/${id}`, commit: sha },
@@ -42,8 +42,26 @@ export async function openGitHub(input: string, options: GitHubOptions): Promise
   };
 }
 
+/**
+ * The skills come from the skill roots' trees, which tell a symbolic link from a file and have no
+ * result limit. The SKILL.md files elsewhere, to flag: from the whole tree, or with a token, code search.
+ */
+async function listPaths(github: Client, id: string, sha: string, token: boolean, warnings: string[]): Promise<string[]> {
+  if (!token) {
+    const tree = await github.json<Tree>(`${API}/repos/${id}/git/trees/${sha}?recursive=1`);
+    if (!tree.truncated) return files(tree);
+    warnings.push(
+      `the tree is too large to list at once; a SKILL.md outside ${SKILL_ROOTS.join(', ')} is not flagged (GITHUB_TOKEN searches everywhere)`,
+    );
+    return rootPaths(github, id, sha);
+  }
+  const [inRoots, found] = await Promise.all([rootPaths(github, id, sha), searchPaths(github, id, warnings)]);
+  const outside = found.filter((path) => !SKILL_ROOTS.some((root) => path.startsWith(`${root}/`)));
+  return [...inRoots, ...outside];
+}
+
 /** Code search looks at the whole default branch, 100 results a page. */
-async function searchPaths(github: Client, id: string): Promise<string[]> {
+async function searchPaths(github: Client, id: string, warnings: string[]): Promise<string[]> {
   const paths = new Set<string>(); // pages can repeat a result
   // GitHub returns at most 1000 results: ten pages.
   for (let page = 1; page <= 10; page++) {
@@ -52,27 +70,40 @@ async function searchPaths(github: Client, id: string): Promise<string[]> {
     );
     for (const item of result.items) paths.add(item.path);
     if (result.items.length < 100 || page * 100 >= result.total_count) break;
+    if (page === 10) warnings.push(`code search stops at 1000 SKILL.md files; the others outside ${SKILL_ROOTS.join(', ')} are not flagged`);
   }
   return [...paths];
 }
 
 type Tree = { truncated: boolean; tree: { path: string; mode: string; type: string; sha: string }[] };
 
-/** The whole tree at once, or only the skill roots when it is too large for one answer: no skill is lost. */
-async function treePaths(github: Client, id: string, sha: string, warnings: string[]): Promise<string[]> {
-  const tree = await github.json<Tree>(`${API}/repos/${id}/git/trees/${sha}?recursive=1`);
-  if (!tree.truncated) return files(tree);
-  warnings.push(
-    `the tree is too large to list at once; a SKILL.md outside ${SKILL_ROOTS.join(', ')} is not flagged (GITHUB_TOKEN searches everywhere)`,
+/** Every file in the skill roots, the roots at the same time. */
+async function rootPaths(github: Client, id: string, sha: string): Promise<string[]> {
+  const lists = await Promise.all(
+    SKILL_ROOTS.map(async (root) => {
+      const rootSha = await directory(github, id, sha, root);
+      return rootSha ? (await rootFiles(github, id, rootSha)).map((path) => `${root}/${path}`) : [];
+    }),
   );
-  const paths: string[] = [];
-  for (const root of SKILL_ROOTS) {
-    const rootSha = await directory(github, id, sha, root);
-    if (!rootSha) continue;
-    const subtree = await github.json<Tree>(`${API}/repos/${id}/git/trees/${rootSha}?recursive=1`);
-    paths.push(...files(subtree).map((path) => `${root}/${path}`));
-  }
-  return paths;
+  return lists.flat();
+}
+
+/**
+ * A skill root's whole tree; when it is too large for one answer, its files and each directory's own
+ * files, as a skill is one level down: no skill is lost.
+ */
+async function rootFiles(github: Client, id: string, rootSha: string): Promise<string[]> {
+  const tree = await github.json<Tree>(`${API}/repos/${id}/git/trees/${rootSha}?recursive=1`);
+  if (!tree.truncated) return files(tree);
+  const top = await github.json<Tree>(`${API}/repos/${id}/git/trees/${rootSha}`);
+  const directories = top.tree.filter((item) => item.type === 'tree');
+  const lists = await Promise.all(
+    directories.map(async (item) => {
+      const own = await github.json<Tree>(`${API}/repos/${id}/git/trees/${item.sha}`);
+      return files(own).map((path) => `${item.path}/${path}`);
+    }),
+  );
+  return [...files(top), ...lists.flat()];
 }
 
 /** Walks down one level at a time; the directory's tree, or undefined if it does not exist. */

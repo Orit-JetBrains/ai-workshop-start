@@ -19,14 +19,19 @@ A file `<root>/<directory>/SKILL.md`, where `<root>` is a **skill root** at the 
 - A local directory: the same rules; `.git` is never part of it
 ## Copies
 The **same directory** in several skill roots is *one skill*, as agents mirror their folders
-- Its path is the *first root* in the order above; the others are its *copies*
+- Its path is the *first root* in the order above with a *readable* file; the others are its *copies*
 - The name and description come from that file; the copies may differ in content
-- A copy whose name differs → a *warning* (`<path>: a copy of <path>, but named <name>`), still one skill
+- A copy whose name differs → a *warning* (`<path>: a copy of <path>, but named <name>`), still one skill;
+  a copy with malformed front matter has no name to compare: only its own warning
+- A copy GitHub fails to answer → a *warning*, the scan goes on; no file of the skill answered → the error, exit code 1
 - Different directories with the same front matter name: *two skills*, sorted by path
 ## Details
 - **GitHub API**, no clone; *under 5 s* for intellij-community
+- The skills come from the *skill roots' trees*, which tell a symbolic link from a file
 - A repository too large for one tree answer: no skill is lost, as the skill roots are listed apart;
   without `GITHUB_TOKEN`, the `SKILL.md` files outside them cannot be flagged → *one warning* that says so
+- A skill root too large for one tree answer: each skill directory is listed on its own, no skill is lost
+- `GITHUB_TOKEN`: code search finds the `SKILL.md` files to flag; past its 1000 results → *a warning*
 - The name: front matter, else the directory
 - No description → the skill is listed by name alone
 - The link pins the *scanned commit*

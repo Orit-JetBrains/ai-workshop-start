@@ -11,7 +11,7 @@ import { openGitHub } from '../src/core/github.ts';
 import { parseSkill } from '../src/core/parse.ts';
 import { run } from '../src/commands.ts';
 import { replay, type Recording } from '../src/core/replay.ts';
-import { atlas, CLI, EXAMPLE_COMMIT, FIXTURE } from './helpers.ts';
+import { atlas, CLI, EXAMPLE_COMMIT, FIXTURE, trees } from './helpers.ts';
 
 const fixture = await atlas(['scan', FIXTURE]);
 const example = await atlas(['scan', 'github.com/JetBrains/example']);
@@ -144,82 +144,134 @@ test('GitHub, code search: a SKILL.md outside the skill roots is flagged, a skil
   const scanned = await scanGitHub(
     {
       ...repository(),
-      [`${API}/search/code?q=filename:SKILL.md+repo:JetBrains/edge&per_page=100&page=1`]: {
-        status: 200,
-        body: {
-          total_count: 3,
-          items: [{ path: '.claude/skills/a/SKILL.md' }, { path: 'docs/SKILL.md' }, { path: '.claude/skills/b/skill.md' }],
-        },
-      },
-      ...file('.claude/skills/a/SKILL.md', '---\nname: a\ndescription: Skill a.\n---\n'),
+      ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md']),
+      ...search(['.claude/skills/a/SKILL.md', 'docs/SKILL.md', '.claude/skills/b/skill.md']),
+      ...file('.claude/skills/a/SKILL.md', SKILL_A),
     },
     'test',
   );
-  assert.equal(scanned.stdout, ['JetBrains/edge · 1 skill', 'a — Skill a.', `  https://github.com/JetBrains/edge/blob/${COMMIT}/.claude/skills/a/SKILL.md`].join('\n'));
+  assert.equal(scanned.stdout, ONLY_A);
   assert.equal(scanned.stderr, 'warning: docs/SKILL.md: not in a skill root; ignored');
+});
+
+test('GitHub, code search: a symbolic link in a skill root is skipped, as the tree tells', async () => {
+  const scanned = await scanGitHub(
+    {
+      ...repository(),
+      ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', '.claude/skills/linked/SKILL.md ->']),
+      ...search(['.claude/skills/a/SKILL.md', '.claude/skills/linked/SKILL.md']),
+      ...file('.claude/skills/a/SKILL.md', SKILL_A),
+    },
+    'test',
+  );
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(scanned.stderr, '');
+});
+
+test('GitHub, code search past 1000 results: no skill is lost, and a warning says what is not flagged', async () => {
+  const vendored = Array.from({ length: 1000 }, (_, i) => `third_party/p${i}/SKILL.md`);
+  const pages: Recording = {};
+  for (let page = 1; page <= 10; page++) {
+    pages[`${API}/search/code?q=filename:SKILL.md+repo:JetBrains/edge&per_page=100&page=${page}`] = {
+      status: 200,
+      body: { total_count: 1001, items: vendored.slice((page - 1) * 100, page * 100).map((path) => ({ path })) },
+    };
+  }
+  const scanned = await scanGitHub(
+    { ...repository(), ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md']), ...pages, ...file('.claude/skills/a/SKILL.md', SKILL_A) },
+    'test',
+  );
+  assert.equal(scanned.stdout, ONLY_A);
+  const warnings = scanned.stderr.split('\n');
+  assert.equal(warnings[0], 'warning: code search stops at 1000 SKILL.md files; the others outside .agents/skills, .claude/skills, .github/skills, agent/skills are not flagged');
+  assert.equal(warnings.length, 1001);
 });
 
 test('GitHub, the tree: a symbolic link is skipped, a SKILL.md outside the skill roots is flagged', async () => {
   const scanned = await scanGitHub({
     ...repository(),
-    [`${API}/repos/JetBrains/edge/git/trees/${COMMIT}?recursive=1`]: {
-      status: 200,
-      body: {
-        truncated: false,
-        tree: [
-          { path: '.claude/skills/a/SKILL.md', mode: '100644', type: 'blob', sha: '1' },
-          { path: '.github/skills', mode: '120000', type: 'blob', sha: '2' },
-          { path: '.agents/skills/linked/SKILL.md', mode: '120000', type: 'blob', sha: '3' },
-          { path: 'docs/SKILL.md', mode: '100644', type: 'blob', sha: '4' },
-        ],
-      },
-    },
-    ...file('.claude/skills/a/SKILL.md', '---\nname: a\ndescription: Skill a.\n---\n'),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', '.github/skills ->', '.agents/skills/linked/SKILL.md ->', 'docs/SKILL.md']),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
   });
-  assert.equal(scanned.stdout, ['JetBrains/edge · 1 skill', 'a — Skill a.', `  https://github.com/JetBrains/edge/blob/${COMMIT}/.claude/skills/a/SKILL.md`].join('\n'));
+  assert.equal(scanned.stdout, ONLY_A);
   assert.equal(scanned.stderr, 'warning: docs/SKILL.md: not in a skill root; ignored');
 });
 
 test('GitHub, a tree too large for one answer: no skill is lost, and one warning says what is not flagged', async () => {
   const scanned = await scanGitHub({
     ...repository(),
-    [`${API}/repos/JetBrains/edge/git/trees/${COMMIT}?recursive=1`]: { status: 200, body: { truncated: true, tree: [] } },
-    [`${API}/repos/JetBrains/edge/git/trees/${COMMIT}`]: {
-      status: 200,
-      body: { truncated: false, tree: [{ path: '.claude', mode: '040000', type: 'tree', sha: 'claude' }] },
-    },
-    [`${API}/repos/JetBrains/edge/git/trees/claude`]: {
-      status: 200,
-      body: { truncated: false, tree: [{ path: 'skills', mode: '040000', type: 'tree', sha: 'skills' }] },
-    },
-    [`${API}/repos/JetBrains/edge/git/trees/skills?recursive=1`]: {
-      status: 200,
-      body: { truncated: false, tree: [{ path: 'a/SKILL.md', mode: '100644', type: 'blob', sha: '1' }] },
-    },
-    ...file('.claude/skills/a/SKILL.md', '---\nname: a\ndescription: Skill a.\n---\n'),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', 'docs/SKILL.md'], ['']),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
   });
-  assert.equal(scanned.stdout, ['JetBrains/edge · 1 skill', 'a — Skill a.', `  https://github.com/JetBrains/edge/blob/${COMMIT}/.claude/skills/a/SKILL.md`].join('\n'));
+  assert.equal(scanned.stdout, ONLY_A);
   assert.equal(
     scanned.stderr,
     'warning: the tree is too large to list at once; a SKILL.md outside .agents/skills, .claude/skills, .github/skills, agent/skills is not flagged (GITHUB_TOKEN searches everywhere)',
   );
 });
 
+test('GitHub, a skill root too large for one answer: each skill directory is listed on its own, no skill is lost', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', '.claude/skills/a/references/big.md', '.claude/skills/INDEX.md'], ['', '.claude/skills']),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+  });
+  assert.equal(scanned.stdout, ONLY_A);
+});
+
 test('listed but not readable at the scanned commit → a warning, skipped', async () => {
-  const scanned = await scanGitHub(
-    {
-      ...repository(),
-      [`${API}/search/code?q=filename:SKILL.md+repo:JetBrains/edge&per_page=100&page=1`]: {
-        status: 200,
-        body: { total_count: 1, items: [{ path: '.claude/skills/gone/SKILL.md' }] },
-      },
-      [`https://raw.githubusercontent.com/JetBrains/edge/${COMMIT}/.claude/skills/gone/SKILL.md`]: { status: 404, body: '404: Not Found' },
-    },
-    'test',
-  );
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/gone/SKILL.md']),
+    [raw('.claude/skills/gone/SKILL.md')]: { status: 404, body: '404: Not Found' },
+  });
   assert.equal(scanned.code, 0);
   assert.equal(scanned.stdout, 'JetBrains/edge · 0 skills');
   assert.equal(scanned.stderr, 'warning: .claude/skills/gone/SKILL.md: listed, but not found at the scanned commit; skipped');
+});
+
+test('the first root\'s file not readable → the skill is the first readable copy', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.agents/skills/a/SKILL.md', '.claude/skills/a/SKILL.md']),
+    [raw('.agents/skills/a/SKILL.md')]: { status: 404, body: '404: Not Found' },
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+  });
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(scanned.stderr, 'warning: .agents/skills/a/SKILL.md: listed, but not found at the scanned commit; skipped');
+});
+
+test('a copy that GitHub fails to answer → a warning, the scan goes on', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md', 'agent/skills/a/SKILL.md']),
+    ...file('.claude/skills/a/SKILL.md', SKILL_A),
+    [raw('agent/skills/a/SKILL.md')]: { status: 502, body: 'Bad Gateway' },
+  });
+  assert.equal(scanned.code, 0);
+  assert.equal(scanned.stdout, ONLY_A);
+  assert.equal(scanned.stderr, `warning: agent/skills/a/SKILL.md: GitHub answered 502 for ${raw('agent/skills/a/SKILL.md')}; skipped`);
+});
+
+test('no file of a skill that GitHub answers → the error, exit code 1', async () => {
+  const scanned = await scanGitHub({
+    ...repository(),
+    ...trees('JetBrains/edge', COMMIT, ['.claude/skills/a/SKILL.md']),
+    [raw('.claude/skills/a/SKILL.md')]: { status: 502, body: 'Bad Gateway' },
+  });
+  assert.equal(scanned.code, 1);
+  assert.equal(scanned.stderr, `GitHub answered 502 for ${raw('.claude/skills/a/SKILL.md')}`);
+});
+
+test('a copy with malformed front matter → its warning, but no other name to compare', async (t) => {
+  const directory = temporary(t, {
+    '.claude/skills/commits/SKILL.md': '---\nname: commit-messages\ndescription: Commit messages.\n---\n',
+    'agent/skills/commits/SKILL.md': '---\nname: [unclosed\n---\n',
+  });
+  const scanned = await atlas(['scan', directory]);
+  assert.match(scanned.stdout, /^commit-messages — Commit messages\.$/m);
+  assert.match(scanned.stderr, /^warning: agent\/skills\/commits\/SKILL\.md: malformed front matter: /);
+  assert.doesNotMatch(scanned.stderr, /a copy of/);
 });
 
 test('the CLI prints the result at once and stores nothing', (t) => {
@@ -270,8 +322,25 @@ function repository(): Recording {
   };
 }
 
+const SKILL_A = '---\nname: a\ndescription: Skill a.\n---\n';
+const ONLY_A = ['JetBrains/edge · 1 skill', 'a — Skill a.', `  https://github.com/JetBrains/edge/blob/${COMMIT}/.claude/skills/a/SKILL.md`].join('\n');
+
+function raw(path: string): string {
+  return `https://raw.githubusercontent.com/JetBrains/edge/${COMMIT}/${path}`;
+}
+
 function file(path: string, text: string): Recording {
-  return { [`https://raw.githubusercontent.com/JetBrains/edge/${COMMIT}/${path}`]: { status: 200, body: text } };
+  return { [raw(path)]: { status: 200, body: text } };
+}
+
+/** Code search, answering these paths on one page. */
+function search(paths: string[]): Recording {
+  return {
+    [`${API}/search/code?q=filename:SKILL.md+repo:JetBrains/edge&per_page=100&page=1`]: {
+      status: 200,
+      body: { total_count: paths.length, items: paths.map((path) => ({ path })) },
+    },
+  };
 }
 
 /** `skill-atlas scan github.com/JetBrains/edge`, with GitHub answering from the recording. */

@@ -15,5 +15,10 @@ build-tools-bump-gradle-api — Bumps the Gradle API version that Kotlin Gradle 
 
 Set `GITHUB_TOKEN` for a higher GitHub rate limit. `npm test` runs the tests.
 
+To compare live scans of JetBrains/MPS, JetBrains/android and JetBrains/Koog
+with checked-in output, run `npm run test:real`. The command uses `GITHUB_TOKEN`
+or your existing `gh` login. It shows a diff if a result changes. Run
+`npm run test:real:update` to refresh the snapshots after reviewing the changes.
+
 - [spec/](spec/): what it does. [AGENTS.md](AGENTS.md): the definition of done.
 - [fixture/](fixture/README.md): a small repository for the tests.

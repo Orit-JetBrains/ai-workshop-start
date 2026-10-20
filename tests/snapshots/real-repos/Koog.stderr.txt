@@ -1,0 +1,2 @@
+warning: integration-tests/src/jvmTest/resources/skills/arithmetic-evaluator/SKILL.md: not in a skill root; ignored
+warning: integration-tests/src/jvmTest/resources/skills/weather-retrieval/SKILL.md: not in a skill root; ignored

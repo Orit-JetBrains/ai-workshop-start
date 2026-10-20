@@ -9,23 +9,19 @@ export const SKILL_ROOTS = ['.agents/skills', '.claude/skills', '.github/skills'
  * several roots is one skill, at the first root, with copies; a SKILL.md anywhere else is flagged.
  */
 export function findSkills(paths: string[]): { files: SkillFile[]; warnings: string[] } {
-  const found = new Map<string, string[][]>(); // directory → its SKILL.md in each root, by root
+  const places: { path: string; root: number; directory: string }[] = [];
   const warnings: string[] = [];
   for (const path of [...paths].sort()) {
     if (path.split('/').at(-1) !== 'SKILL.md') continue;
     const place = skillPlace(path);
-    if (!place) {
-      warnings.push(`${path}: not in a skill root; ignored`);
-      continue;
-    }
-    const byRoot = found.get(place.directory) ?? SKILL_ROOTS.map(() => []);
-    byRoot[place.root].push(path);
-    found.set(place.directory, byRoot);
+    if (place) places.push({ path, ...place });
+    else warnings.push(`${path}: not in a skill root; ignored`);
   }
-  const files = [...found].map(([name, byRoot]) => {
-    const [path, ...copies] = byRoot.flat();
-    return { path, name, copies };
-  });
+  const found = new Map<string, string[]>(); // directory → its SKILL.md files, in root order
+  for (const { path, directory } of places.sort((a, b) => a.root - b.root)) {
+    found.set(directory, [...(found.get(directory) ?? []), path]);
+  }
+  const files = [...found].map(([name, [path, ...copies]]) => ({ path, name, copies }));
   return { files, warnings };
 }
 

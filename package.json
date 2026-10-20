@@ -12,6 +12,8 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.ts",
+    "test:real": "node scripts/real-repos.mjs",
+    "test:real:update": "node scripts/real-repos.mjs --update",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
