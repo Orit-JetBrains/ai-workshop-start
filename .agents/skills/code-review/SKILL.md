@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; auto-merge only a clean PR with every thread addressed.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and auto-merge, so an unreviewed PR is never mistaken for a clean one.
 ---
 
 # Code review
@@ -58,10 +58,20 @@ gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$
 If the review finds nothing to fix:
 
 - When the target is a pull request **and every review thread is resolved**,
-  enable auto-merge on it (`gh pr merge --auto --squash <pr>`) so it merges once
-  required checks pass, and say that you did.
+  first **mark the review cleared** with a 🟢 approval, then enable auto-merge:
+
+  ```bash
+  gh pr review <pr> --approve --body "🟢 Code review clean — no findings."
+  gh pr merge <pr> --auto --squash
+  ```
+
+  Say that you cleared it and enabled auto-merge.
 - If any thread is still open, do not merge: list what is unresolved and stop.
 - Otherwise (not a PR) just say the review is clean in one line and stop.
 
-Only auto-merge on a genuinely empty review — never when a finding was merely
-skipped as too risky to fix, and never while comments remain unaddressed.
+The 🟢 approval is the signal that a review actually ran and found nothing: an
+absence of comments alone does **not** mean a PR was reviewed. Never merge — or
+auto-merge — a PR that has no 🟢 clean marker and no resolved findings; a PR with
+neither has simply not been reviewed yet. Only post the 🟢 on a genuinely empty
+review — never when a finding was skipped as too risky to fix, and never while
+comments remain unaddressed.
