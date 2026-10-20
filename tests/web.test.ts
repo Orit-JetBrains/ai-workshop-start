@@ -83,6 +83,19 @@ test('the filter is laid out without defeating its own hidden attribute', async 
   assert.ok(css.indexOf('#search[hidden]') > css.indexOf('#search {'), '#search[hidden] must follow #search');
 });
 
+// Layout, for the same reason: the DOM below cannot tell which box scrolls. A filter inside the
+// scrolling panel leaves the screen as soon as a long list is scrolled, which is when it is wanted.
+test('the filter stays put while the skills scroll', async () => {
+  const [, css] = /<style>([\s\S]*?)<\/style>/.exec((await get('/')).body) ?? [];
+  assert.ok(css, 'the page has a stylesheet');
+  const rule = (selector: string) => new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(css!)?.[1] ?? '';
+  // The panel holding the filter must not be the thing that scrolls; the skills below it must be.
+  assert.match(rule('#list'), /overflow:\s*hidden/);
+  assert.match(rule('#results'), /overflow:\s*auto/);
+  // …and the override has to follow the `#list, #file { overflow: auto }` it overrides.
+  assert.ok(css.indexOf('#list {') > css.indexOf('#list, #file'), '#list must follow #list, #file');
+});
+
 test('typing filters the list to the skills whose name or description matches', async () => {
   const page = await openPage(address);
   await page.scan(FIXTURE);

@@ -89,7 +89,10 @@ const PAGE = `<!doctype html>
   form button { font: inherit; padding: .4rem 1rem; }
   main { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; min-height: 0; }
   #list, #file { overflow: auto; padding: 1rem; min-height: 0; }
-  #list { border-right: 1px solid #8884; }
+  /* The filter stays put and only the skills scroll: in a repository with tens of skills, a filter
+     inside the scrolling panel is out of sight exactly when it is wanted. */
+  #list { border-right: 1px solid #8884; display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+  #results { overflow: auto; min-height: 0; }
   #search { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
   /* An author display rule beats the browser's own [hidden] { display: none }, so the rule above
      would keep the filter on screen before a scan has drawn a list. This puts hidden back. */
