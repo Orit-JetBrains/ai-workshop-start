@@ -1628,6 +1628,10 @@
       ]
     }
   },
+  "https://api.github.com/repos/modelcontextprotocol/does-not-exist": {
+    "status": 404,
+    "body": "{\n  \"message\": \"Not Found\",\n  \"documentation_url\": \"https://docs.github.com/rest/repos/repos#get-a-repository\",\n  \"status\": \"404\"\n}\n"
+  },
   "https://api.github.com/repos/modelcontextprotocol/example-remote-client/commits/main": {
     "status": 200,
     "body": {
