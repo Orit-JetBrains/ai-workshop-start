@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments, and for each one say where it is and how to reproduce it.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments, and for each one say where it is, how to reproduce it, and a suggested fix.
 ---
 
 # Code review
@@ -26,5 +26,8 @@ Leave one **inline comment per finding**, anchored to the specific
 - **What** — one sentence stating the bug.
 - **How to reproduce** — concrete inputs or steps that trigger it, and the
   wrong result they produce.
+- **Suggested fix** — the concrete change that resolves it. Prefer a short code
+  snippet or a GitHub suggestion block; otherwise one specific sentence. Don't
+  just restate the problem — say what to do.
 
 If nothing is wrong, say so in one line and stop.
