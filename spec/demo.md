@@ -40,6 +40,8 @@ Each of the five steps ends with its screen **compared** with a checked-in image
 - On CI, a screen that differs from its image, or a step with no image, **fails** the run. Its artifact holds
   the *expected*, *actual* and *diff* images, and the HTML report shows them side by side
 - **Accepting** a change: label the pull request `accept screenshots`. The *Accept screenshots* workflow renders
-  the screens again on CI, commits the ones that changed, or had no image, to the pull request's branch, runs CI on
-  that commit, and takes the label off. A step that fails for any other reason commits nothing
+  the screens again on CI, commits the ones that changed, or had no image, to the pull request's branch, and takes
+  the label off. A step that fails for any other reason commits nothing
+- CI on that commit: with an `ACCEPT_SCREENSHOTS_TOKEN` secret it starts as on any push; without one, GitHub holds
+  it until it is approved on the pull request, and the workflow comments to say so
 - Only a pull request from this repository's own branches: a fork's code never runs with a token that can push
