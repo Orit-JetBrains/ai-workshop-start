@@ -236,8 +236,32 @@ test('the page draws an organization: the heading, each repository with skills a
       ['MPS1 skill', 'kotlin2 skills'],
     );
     assert.match(results.querySelector('ul.warnings')?.text ?? '', /^warning: JetBrains\/broken: /);
-    // The filter is the skills'; an organization's list has none to filter.
-    assert.equal(page.filterShown(), false);
+  });
+});
+
+test('the filter narrows an organization\'s repositories by name, case-insensitively, with its count', async () => {
+  await withOrganization(async (url) => {
+    const page = await openPage(url);
+    await page.scan('https://github.com/JetBrains');
+    const shown = () => page.element('results').querySelectorAll('li.repository').filter((item) => !item.hidden).map((item) => item.querySelector('div.name')?.text);
+    assert.equal(page.filterShown(), true);
+    assert.equal(page.element('filter').placeholder, 'Filter repositories');
+    assert.equal(page.count(), '2 of 2');
+    page.type('OTL');
+    assert.deepEqual(shown(), ['kotlin']);
+    assert.equal(page.count(), '1 of 2');
+    // A count is not a name: "skill" is in every row's text, yet matches no repository.
+    page.type('skill');
+    assert.deepEqual(shown(), []);
+    page.type('');
+    assert.deepEqual(shown(), ['MPS', 'kotlin']);
+    // Choosing a repository starts its skills from an empty filter, now over skills.
+    page.type('kot');
+    page.element('results').querySelectorAll('li.repository')[1].dispatch('click');
+    await until(() => page.element('results').querySelector('h1')?.text === 'JetBrains/kotlin · 2 skills');
+    assert.equal(page.query(), '');
+    assert.equal(page.element('filter').placeholder, 'Filter skills');
+    assert.equal(page.count(), '2 of 2');
   });
 });
 
