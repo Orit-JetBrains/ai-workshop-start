@@ -30,8 +30,8 @@ with skills; choose one to see them.
 
 Set `GITHUB_TOKEN` for a higher GitHub rate limit. `npm test` runs the tests.
 
-To compare live scans of JetBrains/MPS, JetBrains/android and JetBrains/Koog
-with checked-in output, run `npm run test:real`. The command uses `GITHUB_TOKEN`
+To compare live scans of JetBrains/MPS, JetBrains/android, JetBrains/Koog and the
+Orit-JetBrains organization with checked-in output, run `npm run test:real`. The command uses `GITHUB_TOKEN`
 or your existing `gh` login. It shows a diff if a result changes. Run
 `npm run test:real:update` to refresh the snapshots after reviewing the changes.
 

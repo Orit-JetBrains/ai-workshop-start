@@ -8,7 +8,14 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const snapshots = join(root, 'tests/snapshots/real-repos');
-const repos = ['MPS', 'android', 'Koog'];
+// Three repositories, and one organization: a small one, so a run costs a few requests, not the
+// thousands a whole organization such as JetBrains would.
+const targets = {
+  MPS: 'https://github.com/JetBrains/MPS',
+  android: 'https://github.com/JetBrains/android',
+  Koog: 'https://github.com/JetBrains/Koog',
+  'Orit-JetBrains': 'https://github.com/Orit-JetBrains',
+};
 const args = process.argv.slice(2);
 const update = args.length === 1 && args[0] === '--update';
 if (args.length > 0 && !update) {
@@ -23,8 +30,8 @@ if (!token) {
 }
 
 const results = new Map();
-for (const repo of repos) {
-  const result = spawnSync(process.execPath, [join(root, 'src/cli.ts'), 'scan', `https://github.com/JetBrains/${repo}`], {
+for (const [repo, url] of Object.entries(targets)) {
+  const result = spawnSync(process.execPath, [join(root, 'src/cli.ts'), 'scan', url], {
     encoding: 'utf8',
     env: { ...process.env, GITHUB_TOKEN: token },
     maxBuffer: 16 * 1024 * 1024,
@@ -50,9 +57,12 @@ if (update) {
   process.exit(0);
 }
 
-// The snapshot retains the original commit for provenance; comparison ignores only link hashes.
+// The snapshot retains the original commit for provenance; comparison ignores only the hashes in
+// skill links and, for the organization, in the tree a warning names.
 function comparable(output) {
-  return output.replace(/(https:\/\/github\.com\/JetBrains\/[^/\s]+\/blob\/)[0-9a-f]{40}(\/)/g, '$1<commit>$2');
+  return output
+    .replace(/(https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/blob\/)[0-9a-f]{40}(\/)/g, '$1<commit>$2')
+    .replace(/(\/git\/trees\/)[0-9a-f]{40}\b/g, '$1<tree>');
 }
 
 const temp = mkdtempSync(join(tmpdir(), 'skill-atlas-snapshot-'));
