@@ -1,12 +1,21 @@
-// The local web view: a page with a field for a repository, its skills and their SKILL.md. The
-// scan is the core's, on the server, so local directories and GITHUB_TOKEN work as for the CLI.
+// The local web view: a page with a field for a repository, its skills and their SKILL.md, or for an
+// organization, its repositories that have skills. The scan is the core's, on the server, so local
+// directories and GITHUB_TOKEN work as for the CLI.
 import { createServer, type Server } from 'node:http';
 import { AtlasError } from './core/errors.ts';
+import { parseGitHubOrganization } from './core/github.ts';
 import { skillLink } from './core/model.ts';
-import { scan, type Source } from './core/scan.ts';
+import { scan, scanOrganization, type OrganizationSource, type Source } from './core/scan.ts';
 
-/** Starts the web view on 127.0.0.1; resolves to its address once it listens. */
-export async function serve(port: number, open: (input: string) => Promise<Source>): Promise<{ url: string; server: Server }> {
+/**
+ * Starts the web view on 127.0.0.1; resolves to its address once it listens. Without
+ * `openOrganization`, an organization in the field is passed to `open`, which explains itself.
+ */
+export async function serve(
+  port: number,
+  open: (input: string) => Promise<Source>,
+  openOrganization?: (input: string) => Promise<OrganizationSource>,
+): Promise<{ url: string; server: Server }> {
   const server = createServer(async (request, response) => {
     const send = (status: number, type: string, body: string) => {
       response.writeHead(status, { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'no-store' });
@@ -23,7 +32,12 @@ export async function serve(port: number, open: (input: string) => Promise<Sourc
     if (url.pathname === '/') return send(200, 'text/html', PAGE);
     if (url.pathname !== '/api/scan') return send(404, 'text/plain', 'Not found');
     try {
-      send(200, 'application/json', JSON.stringify(await scanWithText(url.searchParams.get('repo') ?? '', open)));
+      const input = (url.searchParams.get('repo') ?? '').trim();
+      const answer =
+        openOrganization && parseGitHubOrganization(input)
+          ? await scanOrganization(await openOrganization(input))
+          : await scanWithText(input, open);
+      send(200, 'application/json', JSON.stringify(answer));
     } catch (error) {
       const message = error instanceof AtlasError ? error.message : `Unexpected error: ${error instanceof Error ? error.message : String(error)}`;
       send(400, 'application/json', JSON.stringify({ error: message }));
@@ -101,11 +115,11 @@ const PAGE = `<!doctype html>
   #count { font-size: .85rem; opacity: .8; white-space: nowrap; }
   h1 { font-size: 1.1rem; margin: 0 0 .75rem; }
   ul { list-style: none; margin: 0; padding: 0; }
-  li.skill { padding: .5rem; border-radius: 6px; cursor: pointer; }
-  li.skill:hover { background: #8882; }
+  li.skill, li.repository { padding: .5rem; border-radius: 6px; cursor: pointer; }
+  li.skill:hover, li.repository:hover { background: #8882; }
   li.skill[aria-selected="true"] { background: #4a90e233; }
   .name { font-weight: 600; }
-  .description, .copies { font-size: .9rem; opacity: .8; }
+  .description, .copies, .hint { font-size: .9rem; opacity: .8; }
   .link { font-size: .8rem; word-break: break-all; }
   .warnings { margin-top: 1rem; font-size: .85rem; color: #b8860b; }
   .error { color: #d33; }
@@ -114,7 +128,7 @@ const PAGE = `<!doctype html>
 </head>
 <body>
 <form id="scan">
-  <input id="repo" name="repo" placeholder="https://github.com/owner/repo or a local directory" aria-label="Repository" required>
+  <input id="repo" name="repo" placeholder="https://github.com/owner/repo, https://github.com/owner or a local directory" aria-label="Repository" required>
   <button>Scan</button>
 </form>
 <main>
@@ -148,19 +162,29 @@ function choose(item, skill) {
   file.replaceChildren(element('h1', '', skill.path), element('pre', '', skill.text));
 }
 
-// Every skill of the last scan, with the item showing it: the filter hides items in place rather
-// than rebuilding the list, so the skill chosen on the right stays chosen while the query narrows.
+// Every skill, or repository, of the last scan: the item showing it and the texts the filter looks
+// in. The filter hides items in place rather than rebuilding the list, so the skill chosen on the
+// right stays chosen while the query narrows.
 let rendered = [];
 
-function matches(skill, query) {
-  return skill.name.toLowerCase().includes(query) || (skill.description || '').toLowerCase().includes(query);
+function matches(entry, query) {
+  return entry.texts.some((text) => text.toLowerCase().includes(query));
+}
+
+// The filter, shown over a fresh list; what it filters is in its placeholder.
+function showFilter(what) {
+  filter.placeholder = 'Filter ' + what;
+  filter.setAttribute('aria-label', 'Filter ' + what);
+  search.hidden = false;
+  applyFilter();
 }
 
 function applyFilter() {
   const query = filter.value.trim().toLowerCase();
   let shown = 0;
-  for (const { item, skill } of rendered) {
-    const show = !query || matches(skill, query);
+  for (const entry of rendered) {
+    const { item } = entry;
+    const show = !query || matches(entry, query);
     item.hidden = !show;
     if (show) shown++;
   }
@@ -190,6 +214,7 @@ async function scan(input) {
   }
   if (token !== latestScan) return;
   if (answer.error) return results.replaceChildren(element('p', 'error', answer.error));
+  if (answer.organization) return showOrganization(answer);
   const total = answer.skills.length;
   const items = element('ul');
   for (const skill of answer.skills) {
@@ -206,18 +231,47 @@ async function scan(input) {
     item.addEventListener('click', (event) => { if (event.target !== link) choose(item, skill); });
     item.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target !== link) choose(item, skill); });
     items.append(item);
-    rendered.push({ item, skill });
+    rendered.push({ item, texts: [skill.name, skill.description || ''] });
   }
   results.replaceChildren(element('h1', '', answer.repository.id + ' · ' + total + (total === 1 ? ' skill' : ' skills')), items);
-  if (answer.warnings.length) {
-    const warnings = element('ul', 'warnings');
-    for (const warning of answer.warnings) warnings.append(element('li', '', 'warning: ' + warning));
-    results.append(warnings);
-  }
-  search.hidden = false;
-  applyFilter();
+  showWarnings(answer.warnings);
+  showFilter('skills');
   const first = items.querySelector('li.skill');
   if (first) choose(first, answer.skills[0]);
+}
+
+function showWarnings(list) {
+  if (!list.length) return;
+  const warnings = element('ul', 'warnings');
+  for (const warning of list) warnings.append(element('li', '', 'warning: ' + warning));
+  results.append(warnings);
+}
+
+// An organization: its repositories that have skills, each with its count. Choosing one scans it,
+// as if its URL had been typed into the field.
+function showOrganization(answer) {
+  const total = answer.repositories;
+  const items = element('ul');
+  for (const repository of answer.withSkills) {
+    const item = element('li', 'repository');
+    item.tabIndex = 0;
+    item.setAttribute('role', 'option');
+    item.append(element('div', 'name', repository.name));
+    item.append(element('div', 'description', repository.skills + (repository.skills === 1 ? ' skill' : ' skills')));
+    const open = () => {
+      repo.value = 'https://github.com/' + repository.id;
+      scan(repo.value);
+    };
+    item.addEventListener('click', open);
+    item.addEventListener('keydown', (event) => { if (event.key === 'Enter') open(); });
+    items.append(item);
+    rendered.push({ item, texts: [repository.name] });
+  }
+  const heading = answer.organization + ' · ' + total + (total === 1 ? ' repository' : ' repositories') + ', ' + answer.withSkills.length + ' with skills';
+  results.replaceChildren(element('h1', '', heading), items);
+  showWarnings(answer.warnings);
+  showFilter('repositories');
+  if (answer.withSkills.length) file.replaceChildren(element('p', 'hint', 'Choose a repository to see its skills.'));
 }
 
 document.getElementById('scan').addEventListener('submit', (event) => {

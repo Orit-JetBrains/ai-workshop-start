@@ -15,6 +15,7 @@ class Element {
   hidden = false;
   tabIndex = 0;
   value = '';
+  placeholder = '';
   href = '';
   target = '';
   private readonly attributes = new Map<string, string>();
