@@ -18,6 +18,18 @@ What it shows, in order:
 5. **A skill chosen** — its last updated date, and its SKILL.md, the whole file, front matter
    included.
 
+## The back button
+
+[back-button.mp4](back-button.mp4) — 37 s, no sound, captions in the frame; the same server and
+browser, the `back-button` case.
+
+1. **The organization scan.** `github.com/modelcontextprotocol`: the 6 repositories with skills.
+2. **A repository chosen from it.** `inspector` and its 11 skills — a step of its own in the
+   browser's history, the address `?repo=…/inspector`.
+3. **Back.** The organization's 6 repositories again, its URL back in the field: the list the scan
+   came from, not a step out of the page.
+4. **Back again.** The page the first scan was run from — the top bar, and nothing else.
+
 Every step above is also a test: `npm run test:demo` replays this walkthrough in a browser against a
 real `skill-atlas serve`, over a recording of the same scan, in the same 1280×760 window with
 bundled fonts, and records each run as a video and a trace. See [spec/demo.md](../../spec/demo.md).
@@ -37,5 +49,6 @@ $ node .agents/skills/demo-video/scripts/record.mjs organization-and-filter \
     --out docs/demo/skill-atlas-demo.mp4
 ```
 
-Other prepared cases cover the organization scan alone, a single repository, and the error path;
+Other prepared cases cover the organization scan alone, a single repository, the back button and
+the error path;
 `--set organization=… --set repository=…` points any of them at another account.

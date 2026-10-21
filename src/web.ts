@@ -247,12 +247,25 @@ filter.addEventListener('input', applyFilter);
 const clustered = new URLSearchParams(location.search).get('cluster');
 const clusters = clustered ? '&cluster=' + encodeURIComponent(clustered) : '';
 
+// The address a scan puts in the bar, as a step of the browser's history of its own: the address is
+// a state the page can be loaded in, so the back button walks back through the scans — to the
+// organization a repository was chosen from — instead of leaving the page altogether. A scan of the
+// address already shown takes that entry rather than adding one: the one \`?repo=\` runs on load, and
+// the same input scanned twice, would otherwise leave a step back that only runs the scan it came from.
+function remember(input) {
+  const address = '?repo=' + encodeURIComponent(input) + clusters;
+  const shown = new URLSearchParams(location.search).get('repo');
+  if (shown === input) history.replaceState(null, '', address);
+  else history.pushState(null, '', address);
+}
+
 let latestScan = 0;
-async function scan(input) {
+/** Scans \`input\`; \`step\` is false for a scan the back or forward button itself just asked for. */
+async function scan(input, step = true) {
   // Scans can overlap; only the most recent one may touch the page, so a slow earlier
   // response cannot overwrite a newer result that no longer matches the input or the URL.
   const token = ++latestScan;
-  history.replaceState(null, '', '?repo=' + encodeURIComponent(input) + clusters);
+  if (step) remember(input);
   results.replaceChildren(element('p', '', 'Scanning…'));
   file.replaceChildren();
   // A scan starts from the whole list again: the previous query says nothing about these skills.
@@ -355,10 +368,34 @@ function showOrganization(answer) {
   if (answer.withSkills.length) file.replaceChildren(element('p', 'hint', 'Choose a repository to see its skills.'));
 }
 
+// The page as it is served, before any scan at all: no list, no chosen file, an empty field. A scan
+// still running is left behind with it, as a newer scan leaves an older one.
+function clearPage() {
+  latestScan++;
+  repo.value = '';
+  results.replaceChildren();
+  file.replaceChildren();
+  rendered = undefined;
+  groups = undefined;
+  filter.value = '';
+  showFilter('skills');
+}
+
 document.getElementById('scan').addEventListener('submit', (event) => {
   event.preventDefault();
   scan(repo.value.trim());
 });
+
+// A step taken with the back or forward button: the entry stepped into is the scan its address
+// names, run again — the page stores nothing, so the scan is what brings the list back — and the
+// entry before the first scan is the empty page. The step itself is the browser's, not ours.
+addEventListener('popstate', () => {
+  const input = new URLSearchParams(location.search).get('repo');
+  if (!input) return clearPage();
+  repo.value = input;
+  scan(input, false);
+});
+
 const initial = new URLSearchParams(location.search).get('repo');
 if (initial) { repo.value = initial; scan(initial); }
 </script>

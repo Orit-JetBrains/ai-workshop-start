@@ -96,14 +96,23 @@ export type Page = {
   query(): string;
   /** An element by id, for anything the helpers above do not cover. */
   element(id: string): Element;
+  /** The address of every history entry the page has made, oldest first. */
+  history(): string[];
+  /**
+   * The browser's back button. `false` is a step the browser takes out of the page, there being no
+   * earlier entry of it to return to; `true` fires `popstate`, and what it starts is awaited as a
+   * scan is — with `until`.
+   */
+  back(): boolean;
 };
 
 /**
  * Serves `/` from `address`, runs the script it contains, and returns the page it builds. `fetch`
- * inside the page is the real one, so `/api/scan` is answered by that same running server. `search`
- * is the query of the address the page was opened at, `?repo=…&cluster=1`.
+ * inside the page is the real one, so `/api/scan` is answered by that same running server. `query`
+ * is the address the page is opened at — `?repo=…`, which the page scans on load, and `&cluster=1`,
+ * which makes every scan it does a clustered one.
  */
-export async function openPage(address: string, search = ''): Promise<Page> {
+export async function openPage(address: string, query = ''): Promise<Page> {
   const html = await (await fetch(address)).text();
   const script = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1];
   if (!script) throw new Error('The page has no script');
@@ -124,14 +133,38 @@ export async function openPage(address: string, search = ''): Promise<Page> {
   // Shown or hidden as the page serves it.
   byId.get('search')!.hidden = /<div id="search"[^>]*\shidden[\s>]/.test(html);
 
+  // The browser's session history, as much of it as the page uses: the entry each scan leaves, the
+  // address the page reads itself out of, and the `popstate` a step between entries fires. The page
+  // is the only thing writing here, so an entry is a scan and `back` is the browser's back button.
+  const entries: string[] = [query];
+  let at = 0;
+  const location = { search: query };
+  const popstate: ((event: unknown) => void)[] = [];
+  const history = {
+    pushState(_state: unknown, _title: string, url: string) {
+      // A new step drops whatever `forward` led to, as a browser's does.
+      entries.length = at + 1;
+      entries.push(url);
+      at = entries.length - 1;
+      location.search = url;
+    },
+    replaceState(_state: unknown, _title: string, url: string) {
+      entries[at] = url;
+      location.search = url;
+    },
+  };
+
   const context = createContext({
     document: {
       getElementById: (id: string) => byId.get(id) ?? null,
       createElement: (tag: string) => new Element(tag),
     },
-    history: { replaceState() {} },
-    // What the address line says, which is where `?repo=` and `?cluster=` come from.
-    location: { search },
+    history,
+    location,
+    // The page's own listeners on the window: `popstate` is the only one it takes.
+    addEventListener: (type: string, listener: (event: unknown) => void) => {
+      if (type === 'popstate') popstate.push(listener);
+    },
     // The page talks to the server it was served from, by absolute address.
     fetch: (path: string) => fetch(new URL(path, address)),
     URLSearchParams,
@@ -165,5 +198,13 @@ export async function openPage(address: string, search = ''): Promise<Page> {
     filterShown: () => !byId.get('search')!.hidden,
     query: () => filter.value,
     element: (id: string) => byId.get(id)!,
+    history: () => [...entries],
+    back() {
+      if (at === 0) return false;
+      at--;
+      location.search = entries[at];
+      for (const listener of popstate) listener({});
+      return true;
+    },
   };
 }

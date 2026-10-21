@@ -203,6 +203,29 @@ test('one changed pixel fails the comparison', async ({ atlas, page }, testInfo)
   }).rejects.toThrow(/\b1 pixels\b/);
 });
 
+// The browser's own back button, over the demo's two scans: each scan is a step of its own, so back
+// is the list the scan came from rather than a step out of the page. spec/web.md, Page.
+test('the back button returns to the scan before it, and then to the empty page', async ({ atlas, page }) => {
+  await atlas.scan(ORGANIZATION);
+  await atlas.repositories().filter({ hasText: 'inspector' }).click();
+  await expect(atlas.heading).toHaveText('modelcontextprotocol/inspector · 11 skills');
+  expect(new URL(page.url()).searchParams.get('repo')).toBe(REPOSITORY);
+
+  await page.goBack();
+  await expect(atlas.heading).toHaveText('modelcontextprotocol · 45 repositories, 6 with skills');
+  expect(await atlas.names(atlas.repositories())).toEqual(WITH_SKILLS);
+  await expect(atlas.repository).toHaveValue(ORGANIZATION);
+  expect(new URL(page.url()).searchParams.get('repo')).toBe(ORGANIZATION);
+
+  // Once more: the page the first scan was run from, still the page and not whatever preceded it.
+  await page.goBack();
+  await expect(page.locator('#results')).toBeEmpty();
+  await expect(atlas.repository).toHaveValue('');
+  await expect(atlas.count).toBeEmpty();
+  await expect(atlas.filter).toBeVisible();
+  expect(new URL(page.url()).search).toBe('');
+});
+
 // Everything above is this page: a real `skill-atlas serve`, which reads the repository again on
 // every scan and stores nothing. A reload shows the demo's starting point, not the last run's state.
 test('a reload starts from an empty page', async ({ atlas, page }) => {
