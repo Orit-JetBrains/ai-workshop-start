@@ -23,8 +23,53 @@ with `AGENTS.md`, `AGENTS.md` wins.
    criteria and any linked discussion.
 2. Read the spec in [spec/](../../../spec/) first. The implementation must match
    the spec; update the spec in the same change when the issue changes behavior.
-3. If the issue is ambiguous or underspecified, ask the user before writing code
-   rather than guessing.
+3. If the issue leaves a decision open — it is ambiguous, underspecified, or
+   admits two readings that lead to different work — **ask in Slack** before
+   writing the code that depends on it, rather than guessing. See
+   [Asking an open decision in Slack](#asking-an-open-decision-in-slack).
+
+## Asking an open decision in Slack
+
+Open decisions go to the private channel **#workshop-test-channel**
+(`C0CAS1PPM5K`) in the `aiworkshopatjetbrains` Slack workspace, using the bot
+token in `$SLACK_BOT_TOKEN`. Ask there, wait for an answer, then carry on.
+
+1. **Ask.** One message per decision, stating the issue number, the choice, and
+   the options — someone reading only that message must be able to answer it:
+
+   ```bash
+   curl -s -X POST https://slack.com/api/chat.postMessage \
+     -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+     -H "Content-type: application/json; charset=utf-8" \
+     --data '{"channel":"C0CAS1PPM5K","text":"#<issue>: <the decision>. (a) <option> (b) <option> — which?"}'
+   ```
+
+   Keep the `ts` from the response: it is the thread to read the answer from.
+
+2. **Wait — but not idly.** While waiting, do every part of the issue that does
+   not depend on the answer (branch, `npm ci`, the tests and code for the
+   unaffected cases). Poll the thread for the reply; replies land as thread
+   messages after the original:
+
+   ```bash
+   curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+     "https://slack.com/api/conversations.replies?channel=C0CAS1PPM5K&ts=<ts>"
+   ```
+
+   Poll in the foreground (e.g. `sleep 30` between checks) and keep each run
+   well inside the shell timeout. Do not background the wait and do not
+   schedule a wake-up: an Air session is not resumed after the run ends, so a
+   wait that outlives the turn never reports back.
+
+3. **Go on.** Don't stall the whole issue on an unanswered question:
+
+   - **Answered**: follow the answer. If it changes behavior, update
+     [spec/](../../../spec/) in the same change, and quote the answer in the PR
+     body with a link to the thread.
+   - **No answer within ~10 minutes**: implement the most reasonable reading and
+     keep going. Say plainly in the PR body which decision was unanswered, which
+     reading was taken and why, and link the Slack thread so a reviewer can
+     overrule it. Never present an assumption as a confirmed decision.
 
 ## 2. Implement with tests
 
