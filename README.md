@@ -33,19 +33,27 @@ the pairs both groupings put together or both keep apart — the only way two di
 skills can be read against each other, since `issue` and `issues` are one group under two names.
 
 ```console
-$ ./skill-atlas scan https://github.com/modelcontextprotocol/inspector --compare
-modelcontextprotocol/inspector · 11 skills
+$ ./skill-atlas scan fixture --compare
+fixture · 6 skills
 
 by the words they share                 by claude -p (claude-haiku-4-5)
-issue · 3 skills                        issue · 3 skills
-  issue-create                            issue-create
-…                                       …
-other · 2 skills                        other · 2 skills
-  local-dev                               project-structure
-  project-structure                       release
+review · 2 skills                       commit · 2 skills
+  review                                  code-style
+  review                                  commits
+other · 4 skills                        review · 2 skills
+  code-style                              review
+  commits                                 review
+  deploy                                release · 2 skills
+  release-checklist                       deploy
+                                          release-checklist
 
-The two agree about 51 of the 55 pairs of skills.
+The two agree about 11 of the 15 pairs of skills.
 ```
+
+That is a run, not an illustration — [docs/cluster-run.md](docs/cluster-run.md) records it, and what a
+model costs that the words do not: across seven runs of the same six skills the division never changed,
+but the word above a group came back as `commit`, `code`, `style` and `standards` on different runs, in
+a different order. Expect the groups to hold and their words to move.
 
 `./skill-atlas scan github.com/<organization>` — a GitHub URL with no repository part — scans a whole
 organization or user account instead: how many skills each of its repositories has. It needs `GITHUB_TOKEN`.
