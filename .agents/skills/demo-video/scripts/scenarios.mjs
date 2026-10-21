@@ -107,7 +107,7 @@ export const scenarios = {
     description: 'A cartoon of the problem (10 s), then the organization scan and the filter (20 s)',
     defaults,
     async run(context, options) {
-      const { page, caption, type, wait, choose, countText, headingText } = context;
+      const { page, caption, type, wait, cut, choose, countText, headingText } = context;
       const app = page.url();
 
       await problemIntro(context);
@@ -117,8 +117,10 @@ export const scenarios = {
       await wait(900);
       await type('#repo', `github.com/${options.organization}`);
       await page.click('form#scan button');
+      // Cut, not held: the scan is as long as GitHub is slow, and all of it is an empty list under
+      // a “Scanning…” caption. Long enough to see it start, then straight to the answer.
       await caption('Scanning every repository of the organization…');
-      await page.waitForSelector('#results li.repository', { timeout: 120_000 });
+      await cut(() => page.waitForSelector('#results li.repository', { timeout: 120_000 }));
 
       const heading = (await page.textContent('#list h1'))?.trim();
       await caption(`${heading} — the ones that have skills, with their count`);
@@ -128,7 +130,7 @@ export const scenarios = {
       // a caption written afterwards is briefly stale over the screen it no longer describes.
       await caption('Choosing a repository shows its skills');
       await choose('repository', options.repository);
-      await page.waitForSelector('#results li.skill', { timeout: 120_000 });
+      await cut(() => page.waitForSelector('#results li.skill', { timeout: 120_000 }));
       await caption(`${await headingText()} — each one with its description, its date and its link`);
       await wait(2400);
 

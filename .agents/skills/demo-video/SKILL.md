@@ -36,7 +36,7 @@ recorded organization-and-filter → docs/demo/organization-and-filter.mp4
 | `organization-scan` | The organization scan alone — the repositories with skills and their counts |
 | `repository-and-filter` | One repository typed in directly: its skills, the filter over them, a SKILL.md |
 | `unreachable-repository` | The error path: the message in the page, not a blank list |
-| `problem-and-solution` | The promotional take, ~30 s: ten seconds of the problem as a cartoon — a developer who cannot tell which of their organization's repositories have skills — then the scan, a repository's skills and the filter. Checked in as `docs/demo/skill-atlas-promo.mp4` |
+| `problem-and-solution` | The promotional take, ~25 s: ten seconds of the problem as a cartoon — a developer who cannot tell which of their organization's repositories have skills — then the scan, a repository's skills and the filter, with the waiting cut. Checked in as `docs/demo/skill-atlas-promo.mp4` |
 
 Options:
 
@@ -90,8 +90,13 @@ cannot do; do not claim a video plays inline without having seen it do so.
 - **The filter hides entries with `hidden`.** A hidden `li` cannot be hovered or clicked, so
   anything chosen after a filter must be matched with `li.<role>:not([hidden])` — `choose()` in
   `record.mjs` already does.
-- **Pauses are part of the demo.** Each step holds for 2–3 s so a viewer can read the list before
-  it changes.
+- **Pauses are part of the demo, waiting is not.** Each step holds for 2–3 s so a viewer can read
+  the list before it changes. A *scan*, though, is however long GitHub takes — seconds of an empty
+  list, and a different number of them every run, which is why trimming the finished file by hand
+  is wrong twice over. Wrap the wait in `cut()` instead and the encode drops it:
+  `await cut(() => page.waitForSelector('#results li.skill'))`. It leaves 800 ms at each end
+  (`{ keep }`), so the viewer still sees the scan start and the cut lands on a held screen rather
+  than on the frame that changes it. The recorder prints how much it dropped.
 - Scenarios only drive the page and write captions. Starting the server, capturing and encoding
   stay in `record.mjs`, so a new case is a few lines.
 

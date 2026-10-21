@@ -31,9 +31,9 @@ bundled fonts, and records each run as a video and a trace. See [spec/demo.md](.
 See [spec/web.md](../../spec/web.md) for what the page is specified to do, and
 [spec/analysis.md](../../spec/analysis.md) for the organization and the grouping rules.
 
-## skill-atlas-promo.mp4 — 30 s, the problem first
+## skill-atlas-promo.mp4 — 25 s, the problem first
 
-[skill-atlas-promo.mp4](skill-atlas-promo.mp4) — 31 s. The take for a post or a channel, where a
+[skill-atlas-promo.mp4](skill-atlas-promo.mp4) — 25 s. The take for a post or a channel, where a
 viewer has not read the README and will not watch forty seconds of a tool they have no reason to
 want yet. It opens on the problem and only then shows the answer:
 
@@ -43,13 +43,20 @@ want yet. It opens on the problem and only then shows the answer:
   knows. There is no list.”* The page is
   [intro.html](../../.agents/skills/demo-video/scripts/intro.html), drawn in the same browser and
   captured in the same take, so there is nothing to splice.
-- **10–31 s, the answer, live.** `github.com/modelcontextprotocol` typed into the real app:
+- **10–25 s, the answer, live.** `github.com/modelcontextprotocol` typed into the real app:
   45 repositories scanned, the 6 with skills and their counts, `inspector` chosen for its 11 skills
   with descriptions, dates and links, and the filter narrowing them to `3 of 11`.
 
 The numbers in the cartoon's first beat match the scan the second half performs — a promo that
 promises 45 repositories and then scans 12 reads as a mock-up. `--set organization=…` changes the
 scan; the caption in `intro.html` has to move with it.
+
+**The waiting is cut, not held.** Both scans are real network time — around six seconds of an empty
+list under a “Scanning…” caption, and a different six every run. The scenario marks them with
+`cut()` and the encode drops them, leaving eight tenths of a second at each end so the viewer sees
+the scan start and the cut lands on a screen that is not changing. The recorder reports what it
+dropped: `recorded problem-and-solution → … (5.9s of waiting cut)`. This is why the file is 25 s
+while the browser ran for 31.
 
 ## Recording another one
 

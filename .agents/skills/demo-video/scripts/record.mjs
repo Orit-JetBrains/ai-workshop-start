@@ -135,7 +135,28 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
+// Playwright starts capturing when the page is created, so this is frame zero: every cut below is
+// measured against it.
+const started = Date.now();
+const at = () => (Date.now() - started) / 1000;
+/** The stretches of the capture to drop, in seconds: `[[from, to], …]`. */
+const cuts = [];
+
 const wait = (ms) => page.waitForTimeout(ms);
+
+/**
+ * Marks whatever `work` waits for as dead air and drops it from the encode. A scan is however long
+ * GitHub takes — seconds of an empty list, and a different number of them every run, so trimming
+ * the finished file by hand is wrong twice over. `keep` is how much to leave at each end, so the
+ * cut lands inside a held screen rather than on the frame that changes it.
+ */
+async function cut(work, { keep = 800 } = {}) {
+  const from = at() + keep / 1000;
+  const value = await work();
+  const to = at() - keep / 1000;
+  if (to - from > 0.2) cuts.push([from, to]);
+  return value;
+}
 
 /** A caption strip at the bottom of the frame. The page itself is never modified. */
 const caption = (text) =>
@@ -176,7 +197,7 @@ const headingText = async () => (await page.textContent('#list h1'))?.trim();
 
 try {
   await page.goto(url);
-  await scenario.run({ page, caption, type, wait, choose, countText, headingText }, inputs);
+  await scenario.run({ page, caption, type, wait, cut, choose, countText, headingText }, inputs);
 } finally {
   await context.close();
   await browser.close();
@@ -187,12 +208,55 @@ const [webm] = (await readdir(videoDirectory)).filter((file) => file.endsWith('.
 if (!webm) fail('Playwright captured no video');
 const raw = join(videoDirectory, webm);
 
+/**
+ * The filter that drops the marked stretches: the capture is cut into the parts between them and
+ * concatenated back. Without any cut it is the plain scale, so a case that marks nothing encodes
+ * exactly as it did before.
+ */
+function filter(ranges, duration) {
+  const scale = `fps=15,scale=${SIZE.width}:-2:flags=lanczos`;
+  if (ranges.length === 0) return ['-vf', scale];
+
+  const keeps = [];
+  let from = 0;
+  for (const [cutFrom, cutTo] of ranges) {
+    if (cutFrom > from) keeps.push([from, cutFrom]);
+    from = cutTo;
+  }
+  if (from < duration) keeps.push([from, duration]);
+
+  const parts = keeps.map(
+    ([keepFrom, keepTo], index) =>
+      `[0:v]trim=start=${keepFrom.toFixed(3)}:end=${keepTo.toFixed(3)},setpts=PTS-STARTPTS[k${index}]`,
+  );
+  const inputs = keeps.map((_, index) => `[k${index}]`).join('');
+  return [
+    '-filter_complex',
+    `${parts.join(';')};${inputs}concat=n=${keeps.length}:v=1[cut];[cut]${scale}[out]`,
+    '-map', '[out]',
+  ];
+}
+
+/** How long Playwright's capture actually ran, which no scenario knows in advance. */
+async function duration(file) {
+  const probe = spawn('ffprobe', [
+    '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file,
+  ], { stdio: ['ignore', 'pipe', 'inherit'] });
+  let output = '';
+  probe.stdout.on('data', (chunk) => (output += chunk));
+  await new Promise((resolve, reject) => {
+    probe.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`ffprobe → ${code}`))));
+    probe.on('error', reject);
+  });
+  return Number.parseFloat(output.trim());
+}
+
 await mkdir(dirname(out), { recursive: true });
 // 15 fps and CRF 26 keep a 40 s take well under a megabyte; faststart lets it play while loading.
 await run('ffmpeg', [
   '-hide_banner', '-v', 'error', '-y',
   '-i', raw,
-  '-vf', `fps=15,scale=${SIZE.width}:-2:flags=lanczos`,
+  ...filter(cuts, await duration(raw)),
   '-c:v', 'libx264', '-preset', 'slow', '-crf', '26',
   '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
   out,
@@ -201,4 +265,7 @@ await run('ffmpeg', [
 if (options.keepWebm) await copyFile(raw, out.replace(/\.mp4$/, '.webm'));
 await rm(videoDirectory, { recursive: true, force: true });
 
-console.log(`recorded ${name} → ${out}`);
+const dropped = cuts.reduce((total, [from, to]) => total + (to - from), 0);
+console.log(
+  `recorded ${name} → ${out}` + (dropped ? ` (${dropped.toFixed(1)}s of waiting cut)` : ''),
+);
