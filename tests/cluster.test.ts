@@ -213,6 +213,24 @@ test('a group of fewer than two is dropped, and what the model left out is `othe
   ]);
 });
 
+test('two groups the model labels the same word are one group, merged in the first’s place', async (t) => {
+  const directory = repository(t);
+  // The model answers with `review` twice; a scan's groups are read by their word, so the two are
+  // one, and the skills of both are under it once — in the scan's order, not the model's.
+  const answer = {
+    groups: [
+      { label: 'review', skills: [5, 6] },
+      { label: 'api', skills: [1, 2] },
+      { label: 'review', skills: [3, 4] },
+    ],
+  };
+  const scanned = await cluster(directory, claude(directory, envelope(answer)));
+  assert.deepEqual(scanned.groups, [
+    ['review', ['deploy', 'release-notes', 'review', 'review-fast']],
+    ['api', ['api-get', 'api-list']],
+  ]);
+});
+
 test('at most eight groups', async (t) => {
   const skills = Object.fromEntries(Array.from({ length: 20 }, (_, index) => [`skill-${index + 1}`, `Does thing ${index + 1}.`]));
   const directory = repository(t, skills);
