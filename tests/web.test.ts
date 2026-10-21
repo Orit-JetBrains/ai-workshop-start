@@ -42,6 +42,42 @@ async function get(path: string, base = address) {
   return { status: response.status, type: response.headers.get('content-type') ?? '', body: await response.text() };
 }
 
+/**
+ * A request target sent verbatim, so `fetch` cannot normalise it, and the answer's status and body.
+ * A malformed target only reaches the server this way.
+ */
+async function raw(target: string, base = address): Promise<{ status: number; body: string }> {
+  const { hostname, port } = new URL(base);
+  const answer = await new Promise<string>((resolve, reject) => {
+    const socket = net.connect(Number(port), hostname, () => {
+      socket.write(`GET ${target} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`);
+    });
+    let data = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => (data += chunk));
+    socket.on('end', () => resolve(data));
+    socket.on('error', reject);
+  });
+  const [head, body = ''] = answer.split('\r\n\r\n');
+  return {
+    status: Number(/^HTTP\/1\.1 (\d{3})\b/.exec(head)?.[1]),
+    body: /^transfer-encoding: chunked$/im.test(head) ? unchunk(body) : body,
+  };
+}
+
+/** A chunked body as it came off the socket, without its framing. */
+function unchunk(body: string): string {
+  let rest = body;
+  let text = '';
+  for (;;) {
+    const end = rest.indexOf('\r\n');
+    const size = end === -1 ? 0 : Number.parseInt(rest.slice(0, end), 16);
+    if (!size) return text;
+    text += rest.slice(end + 2, end + 2 + size);
+    rest = rest.slice(end + 2 + size + 2);
+  }
+}
+
 async function scanned(repo: string, base = address): Promise<{ status: number; answer: Answer }> {
   const { status, body } = await get(`/api/scan?repo=${encodeURIComponent(repo)}`, base);
   return { status, answer: JSON.parse(body) };
@@ -396,20 +432,22 @@ test('any other path → 404', async () => {
 });
 
 test('a malformed request URL → 400, and the server stays up', async () => {
-  const { hostname, port } = new URL(address);
-  // A request target that URL parsing rejects, sent raw so fetch cannot normalise it.
-  const status = await new Promise<string>((resolve, reject) => {
-    const socket = net.connect(Number(port), hostname, () => {
-      socket.write('GET //[/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n');
-    });
-    let data = '';
-    socket.setEncoding('utf8');
-    socket.on('data', (chunk) => (data += chunk));
-    socket.on('end', () => resolve(data.split('\r\n', 1)[0]));
-    socket.on('error', reject);
-  });
-  assert.match(status, /^HTTP\/1\.1 400\b/);
+  // A request target that URL parsing rejects.
+  assert.equal((await raw('//[/')).status, 400);
   // The process did not crash: it still answers normal requests.
+  assert.equal((await get('/')).status, 200);
+});
+
+test('a malformed percent-escape in the request target → 400, and the server stays up', async () => {
+  // URL parsing keeps these verbatim rather than rejecting them, so they would otherwise read as
+  // paths the page does not serve — 404 — rather than as the malformed targets they are.
+  for (const target of ['/%', '/%zz', '/%a', '/api/scan%zz?repo=x', '/api/scan?repo=%zz']) {
+    const { status, body } = await raw(target);
+    assert.equal(status, 400, `${target} → 400`);
+    assert.equal(body, 'Bad request', `${target} → Bad request`);
+  }
+  // A complete escape is a path like any other: an absent one is still 404, and `/` still serves.
+  assert.equal((await raw('/%7Enope')).status, 404);
   assert.equal((await get('/')).status, 200);
 });
 

@@ -23,12 +23,16 @@ export async function serve(
       response.end(body);
     };
     // Parse the request target defensively: a malformed URL must not reject the async handler.
+    const target = request.url ?? '/';
     let url: URL;
     try {
-      url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      url = new URL(target, 'http://127.0.0.1');
     } catch {
       return send(400, 'text/plain', 'Bad request');
     }
+    // URL parsing accepts an incomplete percent-escape and keeps it verbatim, so `/%` would read as
+    // a path the page does not serve — 404 — rather than as the malformed target it is.
+    if (hasIncompleteEscape(target)) return send(400, 'text/plain', 'Bad request');
     if (request.method !== 'GET') return send(405, 'text/plain', 'Method not allowed');
     if (url.pathname === '/') return send(200, 'text/html', PAGE);
     if (url.pathname !== '/api/scan') return send(404, 'text/plain', 'Not found');
@@ -62,6 +66,14 @@ export async function serve(
   });
   const address = server.address();
   return { url: `http://127.0.0.1:${typeof address === 'object' && address ? address.port : port}/`, server };
+}
+
+/** Whether a `%` in the request target does not begin a complete `%XX` escape, which makes it malformed. */
+function hasIncompleteEscape(target: string): boolean {
+  for (let at = target.indexOf('%'); at !== -1; at = target.indexOf('%', at + 1)) {
+    if (!/^[0-9a-fA-F]{2}$/.test(target.slice(at + 1, at + 3))) return true;
+  }
+  return false;
 }
 
 /** The scan, each skill with its link and the SKILL.md it was read from. */
