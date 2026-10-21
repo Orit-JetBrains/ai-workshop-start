@@ -337,6 +337,22 @@ test('cluster=1 in the page’s address: every scan it makes is clustered', asyn
   assert.deepEqual(plain.groups(), ['review · 2 skills', 'other · 4 skills']);
 });
 
+test('cluster=1 survives a step back: every entry of the history carries it', async () => {
+  // Where the two changes on this branch meet: each scan is a history entry of its own, and the
+  // address is what carries `cluster=1`. An entry written without it would quietly un-cluster the
+  // page on the way back.
+  const page = await openPage(clusterAddress, '?repo=' + encodeURIComponent(FIXTURE) + '&cluster=1');
+  await page.scan(FIXTURE);
+  assert.deepEqual(page.groups(), ['reviewing · 3 skills', 'shipping · 2 skills', 'other · 1 skill']);
+  const other = join(FIXTURE, 'agent');
+  await page.scan(other);
+  for (const entry of page.history()) assert.match(entry, /&cluster=1$/, entry);
+  // Back to the first scan: the model's groups again, not the shared words'.
+  assert.equal(page.back(), true);
+  await until(() => page.groups().length === 3);
+  assert.deepEqual(page.groups(), ['reviewing · 3 skills', 'shipping · 2 skills', 'other · 1 skill']);
+});
+
 test('a model that cannot be asked → the shared words’ groups, and the warning in the page', async () => {
   const { answer } = await scanned(FIXTURE, address, '&cluster=1');
   // This server has no stand-in: `claude` is not on its PATH, which is a warning, not an error.
