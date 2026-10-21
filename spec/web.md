@@ -33,4 +33,5 @@ for the wordless one), `groups` (the groups in the order the page draws them: ea
 - An organization → JSON: `organization`, `repositories` (how many), `withSkills` (each with its `id`, `name` and `skills`, a count), `warnings`
 - An error → status 400, `{ "error": <message> }`; no `repo` → 400
 - Each scan reads the repository again: *nothing is stored*
-- Any other path → 404; a malformed request target → 400, and the server keeps serving
+- Any other path → 404; a malformed request target → 400, and the server keeps serving. Malformed
+  includes an **incomplete percent-escape** (`/%`, `/%zz`): a `%` that does not begin a `%XX` escape
