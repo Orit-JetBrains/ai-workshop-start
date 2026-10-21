@@ -93,6 +93,17 @@ the same way twice, where [the shared words](#groups) answer the same way on any
 - `SKILL_ATLAS_CLAUDE` names another CLI to run, `SKILL_ATLAS_CLAUDE_MODEL` another model to ask
 - An organization is **not** clustered: a count per repository has nothing to group
 
+## Comparing the two groupings
+The same skills, grouped both ways at once, read against each other — `--compare`
+- Groups are **not** compared by their **words**: `issue` and `issues` are one group under two names, and
+  `test` and `testing` are two groups under names as close. A grouping is its **division of the skills**,
+  and that is what is compared
+- **Pair by pair**: of the `n × (n - 1) / 2` pairs of skills, the two groupings **agree** about a pair when
+  both put it together or both keep it apart. `The two agree about <k> of the <n> pairs of skills.`
+- The **wordless** group counts as a group: keeping two skills out of every other group is a thing a
+  grouping says about them, and the thing the other grouping is read against
+- The model is asked **once**: the words' grouping costs nothing to have beside it
+
 ## An organization
 A **GitHub URL with no repository part** (`github.com/JetBrains`): every repository of the
 organization — or of a **user account**, as both are listed — and how many project skills each has
