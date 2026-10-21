@@ -24,7 +24,8 @@ with `AGENTS.md`, `AGENTS.md` wins.
 2. Read the spec in [spec/](../../../spec/) first. The implementation must match
    the spec; update the spec in the same change when the issue changes behavior.
 3. If the issue leaves a decision open, **ask, wait, then go on**: see
-   [An open decision](#an-open-decision-ask-wait-go-on). Never guess.
+   [An open decision](#an-open-decision-ask-wait-go-on). Never guess on
+   behavior a user would see.
 
 ### An open decision: ask, wait, go on
 
@@ -90,8 +91,9 @@ decision changes:
   as a decision someone made.
 - **Behavior a user would see** — what the feature does, the shape of an API or
   of the CLI's output, anything a reviewer could undo only by rewriting the
-  change: do not pick for them. Say in the thread, and on the issue, that the
-  work is paused on the question; report that plainly, and stop.
+  change: do not pick for them. Say in the Slack thread if one exists, and on
+  the issue, that the work is paused on the question; report that plainly, and
+  stop.
 
 When it is not clear which of the two a decision is, treat it as the second and
 stop. Guessing is only cheap when the guess was cheap to make.
