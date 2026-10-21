@@ -47,10 +47,30 @@ Then:
   the resolved list; mention them, by number and title only, under *Closed as
   not planned* when there are any. A duplicate closed as planned is still
   resolved — read the reason, not the label.
-- **Fold an issue into the PR that closed it.** `gh pr view <number> --json
-  closingIssuesReferences` gives the issues a merged PR closes; list that issue
-  under its PR rather than twice. An issue resolved by hand, with no PR, stands
-  on its own.
+- **Link each PR to its issue, and do not trust one field for it.**
+  `gh pr view <number> --json closingIssuesReferences` is the first try, but it
+  comes back **empty even for a PR whose body says `Closes #39`** — so when it
+  is empty, look further before writing *no linked issue*:
+
+  ```bash
+  gh pr view <n> --json body -q .body | grep -oiE '(closes|fixes|resolves) #[0-9]+'
+  gh pr view <n> --json headRefName -q .headRefName   # issue-to-pr names branches <number>-<slug>
+  gh api repos/<owner>/<repo>/issues/<issue>/timeline \
+    --jq '.[] | select(.event=="closed") | .commit_id'   # the merge commit that closed it
+  ```
+
+  The last one is what actually closed the issue; `git log --oneline -1 <commit>`
+  names the PR. Say *no linked issue* only once all three come up empty.
+- **Mark what each item is.** Every line opens with its kind, so a reader never
+  has to guess whether a number is a PR or an issue: **`PR`**, **`issue`**, or
+  **`bug`** for an issue carrying the `bug` label (read `labels`, which both
+  `gh` queries already ask for). A PR's line names the issue it belongs to, with
+  that issue's own marker and title; an issue's line names the PR that closed
+  it.
+- **An issue appears under both headings**, as the PR's subject *and* on its own
+  line under *Resolved issues* — the cross-reference is the point, and a reader
+  scanning for "what got fixed" should not have to read the PR list to find it.
+  An issue resolved by hand, with no PR at all, says so on its line.
 - **Check the boundary.** `--search` matches to the minute, so a PR merged in
   the same minute as `$since` can land either side of it. Read `mergedAt` and
   `closedAt` on the rows you keep, and drop anything strictly before `$since`.
@@ -102,16 +122,22 @@ and `[text](url)` render as their own punctuation. Keep it to one message:
 ```
 *Status update* · since 2026-10-20 18:00 UTC
 
-*Merged* (2)
-• <https://github.com/o/r/pull/44|#44> Answer a malformed percent-escape with 400 — closes <…|#42>
-• <https://github.com/o/r/pull/41|#41> Record a real `claude -p` run
+*Merged PRs* (2)
+• *PR* <…/pull/44|#44> Answer a malformed percent-escape with 400 — fixes *bug* <…/issues/42|#42> _a malformed request target is answered 404_
+• *PR* <…/pull/41|#41> Record a real `claude -p` run — no linked issue
 
-*Resolved without a PR* (1)
-• <https://github.com/o/r/issues/30|#30> …
+*Resolved issues* (2)
+• *bug* <…/issues/42|#42> A malformed request target is answered 404 — fixed by *PR* <…/pull/44|#44>
+• *issue* <…/issues/30|#30> Show each skill's last updated date — closed by hand, no PR
+
+None closed as not planned.
 ```
 
-One line per item: the number as a link, the title, and what it closed. No
-paragraph of prose around it, and nothing that is not in the lists.
+One line per item, in this order: **the marker**, the number as a link, the
+title, then the relation (`— fixes …`, `— closed by …`, `— no linked issue`).
+The other side's title goes in `_italics_` so the two numbers on a line stay
+told apart. No paragraph of prose around it, and nothing that is not in the
+lists.
 
 ## 4. Nothing landed is an answer
 
