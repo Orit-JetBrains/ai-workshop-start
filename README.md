@@ -28,12 +28,23 @@ model that cannot be asked, or that does not answer with the groups it was asked
 and the words the skills share group them as usual. The web view does the same with `&cluster=1` in its
 address. See [spec/analysis.md](spec/analysis.md#clustering-with-a-model).
 
+`--compare` prints both groupings beside each other, and how much they agree: of every pair of skills,
+the pairs both groupings put together or both keep apart — the only way two divisions of the same
+skills can be read against each other, since `issue` and `issues` are one group under two names.
+
 ```console
-$ ./skill-atlas scan https://github.com/modelcontextprotocol/inspector --cluster
+$ ./skill-atlas scan https://github.com/modelcontextprotocol/inspector --compare
 modelcontextprotocol/inspector · 11 skills
 
-issues · 3 skills
-…
+by the words they share                 by claude -p (claude-haiku-4-5)
+issue · 3 skills                        issue · 3 skills
+  issue-create                            issue-create
+…                                       …
+other · 2 skills                        other · 2 skills
+  local-dev                               project-structure
+  project-structure                       release
+
+The two agree about 51 of the 55 pairs of skills.
 ```
 
 `./skill-atlas scan github.com/<organization>` — a GitHub URL with no repository part — scans a whole
