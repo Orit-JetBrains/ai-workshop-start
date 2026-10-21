@@ -48,7 +48,7 @@ project is for, and who or what it is used by. Read it off the repository
 rather than inventing it:
 
 ```bash
-gh repo view --json description,name -q '.name + ": " + .description'
+gh repo view --json description,name -q '.name + ": " + (.description // "")'
 head -20 README.md
 ls spec/            # what the project's own spec says it has
 ```
@@ -79,18 +79,31 @@ Then:
 - **Link each PR to its issue, and do not trust one field for it.**
   `gh pr view <number> --json closingIssuesReferences` is the first try, but it
   comes back **empty even for a PR whose body says `Closes #39`**, so when it is
-  empty, look further before writing *no linked issue*:
+  empty, read the issue number off the body and the branch name before writing
+  *no linked issue*:
 
   ```bash
-  gh pr view <n> --json body -q .body | grep -oiE '(closes|fixes|resolves) #[0-9]+'
+  gh pr view <n> --json body -q .body | grep -oiE '\b(close[sd]?|fix(ed|es)?|resolve[sd]?):? #[0-9]+'
   gh pr view <n> --json headRefName -q .headRefName   # issue-to-pr names branches <number>-<slug>
-  gh api repos/<owner>/<repo>/issues/<issue>/timeline \
-    --jq '.[] | select(.event=="closed") | .commit_id'   # the merge commit that closed it
   ```
 
-  The last one is what actually closed the issue, and `git log --oneline -1
-  <commit>` names the PR. Say *no linked issue* only once all three come up
+  Both run from the PR and yield an **issue** number. Say *no linked issue* only
+  once `closingIssuesReferences`, the body and the branch name have all come up
   empty.
+
+  The reverse direction, naming the PR that closed an issue whose number you
+  already have, is a separate lookup: the issue's timeline carries the closing
+  commit, and the commit names its PR through the API, so no local clone of the
+  merge commit is needed.
+
+  ```bash
+  gh api repos/<owner>/<repo>/issues/<issue>/timeline \
+    --jq '[.[] | select(.event=="closed" and .commit_id)] | last | .commit_id'
+  gh api repos/<owner>/<repo>/commits/<commit>/pulls -q '.[].number'
+  ```
+
+  Take the **last** `closed` event that carries a `commit_id`: an issue closed
+  by hand has none, and a reopen-then-close has more than one.
 - **Mark what each item is.** Every line opens with its kind, so a reader never
   has to guess whether a number is a PR or an issue: **`PR`**, **`issue`**, or
   **`bug`** for an issue carrying the `bug` label (read `labels`, which every
@@ -152,13 +165,24 @@ curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
   | jq -r '.channels[] | "\(.id)\t\(.name)"'
 ```
 
+`jq` is not installed everywhere; `python3` does the same parse where it is not:
+
+```bash
+curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+  'https://slack.com/api/conversations.list?types=private_channel,public_channel&limit=1000' \
+  | python3 -c 'import json,sys; [print(c["id"], c["name"], sep="\t") for c in json.load(sys.stdin)["channels"]]'
+```
+
 Post with `chat.postMessage`, the body from a file so no quoting mangles it.
-`jq` is not installed everywhere; `python3 -c 'import json, sys; ...'` builds
-the same payload:
+Build the payload with `jq`, or with `python3` where `jq` is missing:
 
 ```bash
 jq -n --arg channel "$channel" --arg text "$(cat /tmp/status-update.md)" \
    '{channel: $channel, text: $text, unfurl_links: false}' > /tmp/status.json
+
+# python3 equivalent, no jq:
+python3 -c 'import json,sys; open("/tmp/status.json","w").write(json.dumps({"channel": sys.argv[1], "text": open(sys.argv[2]).read(), "unfurl_links": False}))' \
+   "$channel" /tmp/status-update.md
 
 curl -s -X POST https://slack.com/api/chat.postMessage \
   -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
@@ -196,8 +220,6 @@ last updated date and a link, grouped by the words the skills share.
 *In progress* (2, current state, not limited to the window)
 • *PR* <…/pull/46|#46> The back button returns to the previous scan, for *bug* <…/issues/43|#43>, in review
 • *bug* <…/issues/50|#50> The filter keeps a group's word with nothing under it, no PR yet, queued for the AI automation
-
-None closed as not planned.
 ```
 
 One line per item, in this order: the **marker**, the number as a link, the
