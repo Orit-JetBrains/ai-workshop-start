@@ -1,6 +1,7 @@
 // The skill-atlas commands. The same code serves the Node CLI and the browser
 // terminal: everything that differs between them comes in through the context.
 import { AtlasError } from './core/errors.ts';
+import { divides, groupSkills } from './core/group.ts';
 import { parseGitHubOrganization } from './core/github.ts';
 import { skillLink, type Repository, type Skill } from './core/model.ts';
 import { scan, scanOrganization, type OrganizationScanResult, type OrganizationSource, type Source } from './core/scan.ts';
@@ -73,15 +74,27 @@ function printOrganization(result: OrganizationScanResult, { print }: Context) {
   }
 }
 
-/** `<owner>/<repo> · N skills`, then each skill's name, first sentence, date and link. */
+/**
+ * `<owner>/<repo> · N skills`, then each group of skills that share a word — the word above them —
+ * and in it each skill's name, first sentence, date and link.
+ */
 function printRepository(repository: Repository, skills: Skill[], { print }: Context) {
   print(`${repository.id} · ${skills.length} ${skills.length === 1 ? 'skill' : 'skills'}`);
-  for (const skill of skills) {
-    print(skill.description ? `${skill.name} — ${firstSentence(skill.description)}` : skill.name);
-    // Under the name, where a skill that has no date simply has no line.
-    if (skill.updatedAt) print(`  updated ${skill.updatedAt}`);
-    print(`  ${skillLink(repository, skill)}`);
-    if (skill.copies.length > 0) print(`  also in ${skill.copies.join(', ')}`);
+  const groups = groupSkills(skills, repository.name);
+  const grouped = divides(groups);
+  for (const group of groups) {
+    if (grouped) {
+      // A blank line above each heading: the groups are the shape of the list, so they are read first.
+      print('');
+      print(`${group.word || 'other'} · ${group.skills.length} ${group.skills.length === 1 ? 'skill' : 'skills'}`);
+    }
+    for (const skill of group.skills) {
+      print(skill.description ? `${skill.name} — ${firstSentence(skill.description)}` : skill.name);
+      // Under the name, where a skill that has no date simply has no line.
+      if (skill.updatedAt) print(`  updated ${skill.updatedAt}`);
+      print(`  ${skillLink(repository, skill)}`);
+      if (skill.copies.length > 0) print(`  also in ${skill.copies.join(', ')}`);
+    }
   }
 }
 

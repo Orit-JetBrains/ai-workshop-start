@@ -17,7 +17,8 @@ import { openPage } from './page.ts';
 
 type Answer = {
   repository: { id: string };
-  skills: { name: string; description: string; path: string; link: string; updatedAt: string; copies: string[]; text: string }[];
+  skills: { name: string; description: string; path: string; link: string; updatedAt: string; copies: string[]; text: string; group: string }[];
+  groups: { word: string; skills: number }[];
   warnings: string[];
   error?: string;
 };
@@ -61,7 +62,11 @@ test('the page: a field for the repository and a Scan button', async () => {
 
 // The filter, driven on the page's own script against the really running server. ./fixture has six
 // skills: code-style, commits, deploy, release-checklist and review twice.
-const ALL = ['code-style', 'commits', 'deploy', 'release-checklist', 'review', 'review'];
+/**
+ * Every skill of ./fixture, in the order the list shows them: by group — `review`, the word the two
+ * review skills share, then the four that share none — and by name inside it, as the scan sorts them.
+ */
+const ALL = ['review', 'review', 'code-style', 'commits', 'deploy', 'release-checklist'];
 
 // Layout is checked on the HTML and CSS the server serves: the DOM below has no stylesheet.
 test('the top bar: the scan field on the left, the filter on the right, outside the list that scrolls', async () => {
@@ -158,10 +163,73 @@ test('emptying the filter restores the whole list; a scan empties the filter', a
 test('the skill chosen on the right stays chosen while the query narrows the list', async () => {
   const page = await openPage(address);
   await page.scan(FIXTURE);
-  // The first skill is chosen after a scan; filtering it away does not choose another one.
-  assert.equal(page.chosen(), 'code-style');
-  page.type('review');
-  assert.equal(page.chosen(), 'code-style');
+  // The first skill of the list is chosen after a scan; filtering it away does not choose another one.
+  assert.equal(page.chosen(), 'review');
+  page.type('Kotlin');
+  assert.deepEqual(page.visible(), ['code-style']);
+  assert.equal(page.chosen(), 'review');
+});
+
+// The groups of spec/web.md: the words above the skills, and what the filter does to them.
+test('the skills are shown in groups, the word and the count above each one', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  // ./fixture divides in two: `review`, the word its two review skills share, then the rest.
+  assert.deepEqual(page.groups(), ['review · 2 skills', 'other · 4 skills']);
+  assert.deepEqual(page.visible(), ALL);
+});
+
+test('a group the filter empties is hidden with its skills: never a word with nothing under it', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  page.type('Kotlin');
+  // Only code-style matches, and it is in the wordless group: `review` goes with its skills.
+  assert.deepEqual(page.visible(), ['code-style']);
+  assert.deepEqual(page.groups(), ['other · 4 skills']);
+  // The count is the matches against the whole list, not against a group.
+  assert.equal(page.count(), '1 of 6');
+  page.type('zzz');
+  assert.deepEqual(page.groups(), []);
+  // Emptying the filter brings every group back.
+  page.type('');
+  assert.deepEqual(page.groups(), ['review · 2 skills', 'other · 4 skills']);
+});
+
+test('one group is no division: a repository whose skills share one word shows no word at all', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'skill-atlas-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  for (const [name, description] of [
+    ['api-get', 'Get one record.'],
+    ['api-list', 'List the records.'],
+  ]) {
+    mkdirSync(join(directory, `.claude/skills/${name}`), { recursive: true });
+    writeFileSync(join(directory, `.claude/skills/${name}/SKILL.md`), `---\nname: ${name}\ndescription: ${description}\n---\n`);
+  }
+  const { answer } = await scanned(directory);
+  assert.deepEqual(answer.groups, [{ word: 'api', skills: 2 }]);
+  const page = await openPage(address);
+  await page.scan(directory);
+  assert.deepEqual(page.groups(), []);
+  assert.deepEqual(page.visible(), ['api-get', 'api-list']);
+});
+
+test('the API answers each skill its group, and the groups in the order the page draws them', async () => {
+  const { answer } = await scanned(FIXTURE);
+  assert.deepEqual(answer.groups, [
+    { word: 'review', skills: 2 },
+    { word: '', skills: 4 },
+  ]);
+  assert.deepEqual(
+    answer.skills.map((skill) => [skill.name, skill.group]),
+    [
+      ['code-style', ''],
+      ['commits', ''],
+      ['deploy', ''],
+      ['release-checklist', ''],
+      ['review', 'review'],
+      ['review', 'review'],
+    ],
+  );
 });
 
 test('a local directory: every project skill sorted as for scan, with its link, copies and SKILL.md', async () => {
@@ -197,9 +265,10 @@ test('the page shows the date beside each skill, and with the chosen one', async
   const dates = page.element('results').querySelectorAll('li.skill').map((item) => item.querySelector('div.updated')?.text);
   assert.equal(dates.length, 6);
   for (const date of dates) assert.match(date ?? '', /^updated \d{4}-\d{2}-\d{2}$/);
-  // The chosen skill: its path, its date and its SKILL.md.
+  // The chosen skill — the first of the list, which is the first group's first: its path, its date
+  // and its SKILL.md.
   assert.equal(page.element('file').querySelector('div.updated')?.text, dates[0]);
-  assert.equal(page.element('file').querySelector('h1')?.text, '.github/skills/code-style/SKILL.md');
+  assert.equal(page.element('file').querySelector('h1')?.text, '.claude/skills/review-a/SKILL.md');
 });
 
 test('a repository with no git history: no date in the answer, and none on the page', async (t) => {

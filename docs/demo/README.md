@@ -10,9 +10,11 @@ What it shows, in order:
 2. **The filter, on an organization's list.** `sdk` narrows it to `3 of 6` — the repositories'
    names; emptying the field restores the list.
 3. **A repository chosen from the organization.** `inspector` goes into the field and its 11
-   skills replace the list, each with its name, description, last updated date and link.
+   skills replace the list, each with its name, description, last updated date and link, in
+   groups of the words they share: `issue` 3, `board` 2, `gate` 2, `test` 2, `other` 2.
 4. **The filter, on the skills.** `issue` narrows it to `3 of 11`, matching the name or the
-   description — not the date.
+   description — not the date; the groups it empties go with their skills, and the `issue`
+   group is all that is left.
 5. **A skill chosen** — its last updated date, and its SKILL.md, the whole file, front matter
    included.
 
@@ -21,7 +23,7 @@ real `skill-atlas serve`, over a recording of the same scan, in the same 1280×7
 bundled fonts, and records each run as a video and a trace. See [spec/demo.md](../../spec/demo.md).
 
 See [spec/web.md](../../spec/web.md) for what the page is specified to do, and
-[spec/analysis.md](../../spec/analysis.md) for the organization rules.
+[spec/analysis.md](../../spec/analysis.md) for the organization and the grouping rules.
 
 ## Recording another one
 

@@ -11,6 +11,10 @@ Prints the address; it only listens on **127.0.0.1**. `GITHUB_TOKEN` works as fo
 - The result: `<owner>/<repo> · N skills`, then each skill's **name**, **description**, **last updated** date
   (`updated <date>`, beside the skill, nothing when it has none) and **link**, sorted as for `scan`;
   `also in <paths>` for copies; the warnings below
+- The skills are shown in **groups**, as [the analysis](analysis.md#groups) finds them: the word above
+  each one, `<word> · <N> skills`, the wordless group shown as `other` and last; a label, not something
+  to choose. A repository whose skills make **one** group shows no word at all
+- A group the filter **empties** is hidden with its skills, word and count: never a word with nothing under it
 - The **top bar**: the field and *Scan* on the **left**, the **filter** on the **right**. Both are *always* shown,
   before a scan too, and stay on screen while the list scrolls
 - The filter narrows the list to the skills whose **name** or **description** contains the query,
@@ -18,11 +22,14 @@ Prints the address; it only listens on **127.0.0.1**. `GITHUB_TOKEN` works as fo
   list; a scan empties it
 - The filter looks in the **name** and the **description** alone: a date is not matched
 - A skill, chosen: its path, its **last updated** date, and its **SKILL.md**, the whole file as text, front matter included
-- The first skill is chosen after a scan; `?repo=<input>` in the address scans it on load
+- The first skill of the **list** is chosen after a scan — the first of the first group, which a group
+  is only as `other` when nothing groups; `?repo=<input>` in the address scans it on load
 - Unreachable repository, or any other error → its message, in the page
 ## API
 `GET /api/scan?repo=<input>` → JSON: `repository`, `skills` (each with its `link`, its `updatedAt`, an **ISO-8601**
-date (`2026-03-14`) or `""` when it has none, and its SKILL.md `text`), `warnings`
+date (`2026-03-14`) or `""` when it has none, its SKILL.md `text`, and its `group`, the word it shares — `""`
+for the wordless one), `groups` (the groups in the order the page draws them: each one's `word` and how many
+`skills` it has), `warnings`
 - An organization → JSON: `organization`, `repositories` (how many), `withSkills` (each with its `id`, `name` and `skills`, a count), `warnings`
 - An error → status 400, `{ "error": <message> }`; no `repo` → 400
 - Each scan reads the repository again: *nothing is stored*

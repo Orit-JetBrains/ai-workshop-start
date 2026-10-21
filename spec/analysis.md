@@ -42,6 +42,30 @@ The date of the **last commit that touched the skill's `SKILL.md`**, so a skill 
 - The date is not the skill: a source that *fails* to answer for one → a *warning* (`<path>: <message>; no date`),
   the skill is still listed, and the scan goes on; a **rate limit** still *ends* it, as for the files themselves
 - An organization's scan does not read it: it stays a **count** per repository
+## Groups
+A repository's skills are **divided by the words they share**: a *heuristic*, no model and no list of
+topics — the words the skills' own authors chose are the grouping
+- A group's **word** is one some skill's **name** uses: a name is what a skill is *called*, so it labels a
+  group a reader recognises, where a description's `repo`, `run`, `fails` would label one nobody asked for
+- A skill **joins** a group when the word is anywhere in its **name or its description**: `pr-flow`, whose
+  name never says `issue`, is under `issue` because its description does
+- The **strongest** word comes first and takes every skill it covers, then the strongest of what is left,
+  until no word is left that two skills share. The strongest is the word the most **names** use, then the
+  one the most **names and descriptions** use, then the **first alphabetically**
+- A word **one skill alone** uses is that skill's own name, not something shared: a group needs **two**
+- The **repository's own name** groups nothing: `mps-tests` and `mps-console` are both MPS's, and a group
+  called `mps` in MPS divides nothing — what the whole repository is about cannot be what divides it
+- A word is a run of letters and digits, lowercased, of **two characters** at least — `pr` and `v2` count,
+  a bare number never does — and not one of the **common words** (`the`, `use`, `when`): a group called
+  `the` says nothing about what is in it. No stemming: `commit` and `committing` are two words
+- What shares no word with anything is the **last** group, the one with **no word**, shown as `other`
+- **One group is no division**: nothing shared, or the same word in every skill, and the skills are shown
+  with no word above them, as they were before there were groups
+- The groups are the **scan's**, not a request's: the same skills always divide the same way. Within a
+  group the skills keep the scan's order, **by name**
+- Only the **name and the description** are read, never the SKILL.md body, and *nothing is stored*
+- An organization's repositories are **not** grouped: a count is all each one has
+
 ## An organization
 A **GitHub URL with no repository part** (`github.com/JetBrains`): every repository of the
 organization — or of a **user account**, as both are listed — and how many project skills each has
