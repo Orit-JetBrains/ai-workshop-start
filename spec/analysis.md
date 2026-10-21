@@ -66,6 +66,51 @@ topics — the words the skills' own authors chose are the grouping
 - Only the **name and the description** are read, never the SKILL.md body, and *nothing is stored*
 - An organization's repositories are **not** grouped: a count is all each one has
 
+## Clustering with a model
+The groups can come from a **model** instead of from the words the skills share: `claude -p`, the Claude
+Code CLI in *print mode*, asked for them. Opt in — `--cluster`, `cluster=1` — because a model is not a
+scan: it is a *process away*, needs a **logged-in CLI**, costs a fraction of a cent, and does not answer
+the same way twice, where [the shared words](#groups) answer the same way on any machine, offline
+- **The small model**, `claude-haiku-4-5`: grouping a handful of short texts needs no more. `claude -p
+  <prompt> --output-format json --model claude-haiku-4-5 --permission-prompts none --system-prompt …`;
+  a grouping is a text answer, so no tool may run for it and nothing waits for a human to allow one
+- It is shown each skill **by number**, its **name** and the first 240 characters of its **description** —
+  never the SKILL.md body — and asked for at most **8 groups of two or more**, each labelled with one
+  lowercase word of the skills' own, and not the repository's own name, as for the shared words
+- It answers `{"groups":[{"label":"<word>","skills":[<numbers>]}]}`, in the CLI's `result`; a code fence
+  around it is allowed for, nothing else is
+- The answer is the model's, the **groups are the scan's**: a label that is not a word, or is too long,
+  or is the reserved word `other`, is *dropped*; a number that is not a skill's, or is a skill another
+  group already took, is *dropped*; a group of fewer than two is *dropped*; what is left over is the
+  **wordless** group, `other`, last. `other` is dropped because that is the word the wordless group is
+  drawn under, and one word is one group. Inside a group the skills keep the scan's order, **by name**,
+  whatever order the model gave
+- Two groups the model labels the **same word** are **one group**, merged in the first's place: a
+  scan's groups are read by their word, so one word is one group, never two with the skills of both
+- **Every failure is a warning, and the shared words group the skills**
+  (`<command>: <message>; grouped by shared words instead`), because a grouping that failed is not worth
+  a scan: no CLI on the PATH, a CLI that is **not logged in**, one that times out (**120 s**), an answer
+  that is not the JSON it was asked for, or groups that do not divide the skills
+- Fewer than **three** skills are not worth asking about: the shared words group them, with no warning
+- `SKILL_ATLAS_CLAUDE` names another CLI to run, `SKILL_ATLAS_CLAUDE_MODEL` another model to ask
+- An organization is **not** clustered: a count per repository has nothing to group
+- The tests answer for `claude -p` with a stand-in, so what a *model* answers is not among them: one real
+  run is recorded in [docs/cluster-run.md](../docs/cluster-run.md) instead, and re-recorded when the
+  prompt, the flags or the model change. It is what *not answering the same way twice* costs in practice —
+  on the same skills the division held across seven runs, while the word above a group and the order of
+  the groups moved — and it is why nothing pinned to a snapshot is clustered
+
+## Comparing the two groupings
+The same skills, grouped both ways at once, read against each other — `--compare`
+- Groups are **not** compared by their **words**: `issue` and `issues` are one group under two names, and
+  `test` and `testing` are two groups under names as close. A grouping is its **division of the skills**,
+  and that is what is compared
+- **Pair by pair**: of the `n × (n - 1) / 2` pairs of skills, the two groupings **agree** about a pair when
+  both put it together or both keep it apart. `The two agree about <k> of the <n> pairs of skills.`
+- The **wordless** group counts as a group: keeping two skills out of every other group is a thing a
+  grouping says about them, and the thing the other grouping is read against
+- The model is asked **once**: the words' grouping costs nothing to have beside it
+
 ## An organization
 A **GitHub URL with no repository part** (`github.com/JetBrains`): every repository of the
 organization — or of a **user account**, as both are listed — and how many project skills each has
