@@ -79,11 +79,25 @@ see differently. Ask before writing code for that part.
    decision and who made it in the PR body, under *Decisions*, linking the
    Slack reply or the issue comment, or quoting it.
 
-If no answer comes within the wait, do not pick for them. Say in the thread,
-and on the issue, that the work is paused on the question; report that
-plainly, and stop.
-The parts the open decision does not touch may still be built and pushed, but
-open no PR until it is answered.
+If no answer comes within the wait, what to do next depends on what the
+decision changes:
+
+- **Cosmetic, or cheap to reverse** — wording, a default value, which of two
+  equivalent spellings, the order of a list: go on. Implement the option you
+  recommended in the question, and record it in the PR body under *Decisions*
+  as unanswered: the question, the reading you took, why, and a link to the
+  thread so a reviewer can overrule it in a line. Never write an assumption up
+  as a decision someone made.
+- **Behavior a user would see** — what the feature does, the shape of an API or
+  of the CLI's output, anything a reviewer could undo only by rewriting the
+  change: do not pick for them. Say in the thread, and on the issue, that the
+  work is paused on the question; report that plainly, and stop.
+
+When it is not clear which of the two a decision is, treat it as the second and
+stop. Guessing is only cheap when the guess was cheap to make.
+
+Either way, the parts the open decision does not touch may still be built and
+pushed — but on a stop, open no PR until it is answered.
 
 ## 2. Implement with tests
 
