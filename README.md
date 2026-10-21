@@ -2,18 +2,24 @@
 
 Every agent skill in a repository: `./skill-atlas scan` finds each project skill, a `SKILL.md`
 in `.agents/skills`, `.claude/skills`, `.github/skills` or `agent/skills`, and prints its name, description,
-last updated date and link.
+last updated date and link, in groups of the words the skills share.
 
 ```console
 $ npm ci
 $ ./skill-atlas scan https://github.com/JetBrains/kotlin
 JetBrains/kotlin · 6 skills
 …
+gradle · 2 skills
 build-tools-bump-gradle-api — Bumps the Gradle API version that Kotlin Gradle plugins are compiled against in the Kotlin compiler repository.
   updated 2026-03-14
   https://github.com/JetBrains/kotlin/blob/5ab6270ab772d113e8ad52ebfcaa0109c522ae00/.claude/skills/build-tools-bump-gradle-api/SKILL.md
 …
 ```
+
+The groups are a heuristic, not a model: the word above a group is one some skill's **name** uses, and a
+skill joins it when the word is anywhere in its name or its description — so `issue-create`,
+`issue-triage` and `pr-flow`, which only mentions an issue, are read together. What shares no word with
+anything is `other`, last. See [spec/analysis.md](spec/analysis.md#groups).
 
 `./skill-atlas scan github.com/<organization>` — a GitHub URL with no repository part — scans a whole
 organization or user account instead: how many skills each of its repositories has. It needs `GITHUB_TOKEN`.

@@ -27,10 +27,12 @@ Each is one test, and all five again as one, end to end — the video's order:
    kotlin-sdk 2, python-sdk 1, servers 11
 2. **The filter, on an organization's list.** `sdk` → `3 of 6`, the three SDK repositories; emptying it → `6 of 6`
 3. **A repository chosen from the organization.** `inspector` → its URL in the field, its **11 skills** in the
-   list, each with its name, description, **last updated** date and link; the filter emptied
-4. **The filter, on the skills.** `issue` → `3 of 11`: issue-create, issue-triage, and pr-flow on its description
+   list, each with its name, description, **last updated** date and link, **in groups** — `issue` 3, `board` 2,
+   `gate` 2, `test` 2, `other` 2, the word above each; the filter emptied
+4. **The filter, on the skills.** `issue` → `3 of 11`: issue-create, issue-triage, and pr-flow on its
+   description — one group left, `issue`, the four the filter emptied gone with their words
 5. **A skill chosen** → its **last updated** date and its SKILL.md, the whole file, front matter included; the
-   first skill is chosen by the scan
+   first skill of the list is chosen by the scan, which is the first group's first
 Two screens the video does not show, because nothing happens in them, are screenshotted too:
 **before a scan** — the top bar, an empty list, no count — and an **unreachable repository**,
 `github.com/modelcontextprotocol/does-not-exist`, whose 404 is recorded like any other answer:

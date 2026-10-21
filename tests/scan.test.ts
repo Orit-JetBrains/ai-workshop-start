@@ -6,12 +6,12 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync,
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { test, type TestContext } from 'node:test';
+import { test } from 'node:test';
 import { openGitHub } from '../src/core/github.ts';
 import { parseSkill } from '../src/core/parse.ts';
 import { run } from '../src/commands.ts';
 import { replay, type Recording } from '../src/core/replay.ts';
-import { atlas, CLI, EXAMPLE_COMMIT, FIXTURE, lastCommits, SKILL_DATE, SKILL_DAY, trees } from './helpers.ts';
+import { atlas, CLI, EXAMPLE_COMMIT, FIXTURE, lastCommits, SKILL_DATE, SKILL_DAY, temporary, trees } from './helpers.ts';
 
 const fixture = await atlas(['scan', FIXTURE]);
 const example = await atlas(['scan', 'github.com/JetBrains/example']);
@@ -54,6 +54,17 @@ test('./fixture: every project skill, sorted by name, linked to its file, with i
     undated(fixture.stdout),
     [
       'fixture · 6 skills',
+      // The groups: `review`, the word the two review skills share, then what shares no word.
+      '',
+      'review · 2 skills',
+      'review — Review a change before it is merged (review-a).',
+      '  updated <date>',
+      `  ${root}/.claude/skills/review-a/SKILL.md`,
+      'review — Review a change before it is merged (review-b).',
+      '  updated <date>',
+      `  ${root}/.claude/skills/review-b/SKILL.md`,
+      '',
+      'other · 4 skills',
       "code-style — Follow the project's code style.",
       '  updated <date>',
       `  ${root}/.github/skills/code-style/SKILL.md`,
@@ -68,12 +79,6 @@ test('./fixture: every project skill, sorted by name, linked to its file, with i
       'release-checklist',
       '  updated <date>',
       `  ${root}/.agents/skills/release-checklist/SKILL.md`,
-      'review — Review a change before it is merged (review-a).',
-      '  updated <date>',
-      `  ${root}/.claude/skills/review-a/SKILL.md`,
-      'review — Review a change before it is merged (review-b).',
-      '  updated <date>',
-      `  ${root}/.claude/skills/review-b/SKILL.md`,
     ].join('\n'),
   );
   assert.match(fixture.stderr, /^warning: \.agents\/skills\/release-checklist\/SKILL\.md: malformed front matter: /m);
@@ -488,17 +493,6 @@ async function scanGitHub(recording: Recording, token?: string) {
   return { code, stdout: stdout.join('\n'), stderr: stderr.join('\n') };
 }
 
-/** A directory named `repo` with these files, removed after the test. */
-function temporary(t: TestContext, files: Record<string, string>): string {
-  const parent = mkdtempSync(join(tmpdir(), 'skill-atlas-'));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const directory = join(parent, 'repo');
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(directory, path)), { recursive: true });
-    writeFileSync(join(directory, path), text);
-  }
-  return directory;
-}
 
 function escape(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

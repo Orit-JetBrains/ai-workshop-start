@@ -16,33 +16,39 @@ const MISSING = 'https://github.com/modelcontextprotocol/does-not-exist';
 const WITH_SKILLS = ['conformance', 'csharp-sdk', 'inspector', 'kotlin-sdk', 'python-sdk', 'servers'];
 const COUNTS = ['3 skills', '7 skills', '11 skills', '2 skills', '1 skill', '11 skills'];
 
-/** The eleven skills of modelcontextprotocol/inspector, in the page's order. */
+/**
+ * The eleven skills of modelcontextprotocol/inspector, in the page's order: by group — the word each
+ * group shares, strongest first — and by name inside it.
+ */
 const SKILLS = [
-  'board-ops',
   'issue-create',
   'issue-triage',
-  'local-dev',
   'pr-flow',
-  'pre-push-gate',
-  'project-structure',
-  'release',
+  'board-ops',
   'security-advisory',
+  'pre-push-gate',
+  'release',
   'test-servers',
   'testing',
+  'local-dev',
+  'project-structure',
 ];
+
+/** The groups those skills fall into, with their counts, in the page's order. */
+const GROUPS = ['issue · 3 skills', 'board · 2 skills', 'gate · 2 skills', 'test · 2 skills', 'other · 2 skills'];
 
 /** When each of them was last changed, in the same order: the recording's dates. */
 const UPDATED = [
-  'updated 2026-10-02',
   'updated 2026-09-19',
   'updated 2026-10-01',
-  'updated 2026-10-05',
   'updated 2026-10-12',
-  'updated 2026-10-13',
-  'updated 2026-10-07',
-  'updated 2026-10-12',
+  'updated 2026-10-02',
   'updated 2026-10-01',
+  'updated 2026-10-13',
   'updated 2026-10-12',
+  'updated 2026-10-12',
+  'updated 2026-10-07',
+  'updated 2026-10-05',
   'updated 2026-10-07',
 ];
 
@@ -109,12 +115,14 @@ test('3 · a repository chosen from the organization', async ({ atlas, page }) =
   await expect(atlas.heading).toHaveText('modelcontextprotocol/inspector · 11 skills');
   await expect(atlas.skills()).toHaveCount(11);
   expect(await atlas.names(atlas.skills())).toEqual(SKILLS);
+  // In groups, the word each one shares above it: `issue` first, what shares nothing last.
+  expect(await atlas.groups().allTextContents()).toEqual(GROUPS);
   // Each skill with its name, its description, its last updated date and its link.
   const first = atlas.skills().first();
-  await expect(first.locator('.description')).toContainText('gh recipes for the Inspector project boards');
-  await expect(first.locator('.updated')).toHaveText('updated 2026-10-02');
+  await expect(first.locator('.description')).toContainText('Create a tracked issue in this repo end to end');
+  await expect(first.locator('.updated')).toHaveText('updated 2026-09-19');
   expect(await atlas.skills().locator('.updated').allTextContents()).toEqual(UPDATED);
-  await expect(first.locator('a.link')).toHaveAttribute('href', `https://github.com/modelcontextprotocol/inspector/blob/074b8108f340590268f2900741403755e923a11c/.claude/skills/board-ops/SKILL.md`);
+  await expect(first.locator('a.link')).toHaveAttribute('href', `https://github.com/modelcontextprotocol/inspector/blob/074b8108f340590268f2900741403755e923a11c/.claude/skills/issue-create/SKILL.md`);
   // A scan empties the filter.
   await expect(atlas.filter).toHaveValue('');
   await expect(atlas.count).toHaveText('11 of 11');
@@ -128,15 +136,18 @@ test('4 · the filter, on the skills', async ({ atlas, page }) => {
   // The name or the description: pr-flow matches on its description alone.
   expect(await atlas.names(atlas.skills())).toEqual(['issue-create', 'issue-triage', 'pr-flow']);
   await expect(atlas.skills().filter({ hasText: 'pr-flow' }).locator('.description')).toContainText('issue');
+  // The three are one group, and the groups the filter emptied are gone, words and counts with them.
+  expect(await atlas.groups().allTextContents()).toEqual(['issue · 3 skills']);
   await expect(page).toHaveScreenshot('4-skills-filtered.png');
   await atlas.clearFilter();
   await expect(atlas.count).toHaveText('11 of 11');
+  expect(await atlas.groups().allTextContents()).toEqual(GROUPS);
 });
 
 test('5 · a skill chosen, its SKILL.md', async ({ atlas, page }) => {
   await atlas.scan(REPOSITORY);
-  // The first skill is chosen by the scan itself.
-  expect(await atlas.chosen()).toMatchObject({ path: '.claude/skills/board-ops/SKILL.md', updated: 'updated 2026-10-02' });
+  // The first skill of the list is chosen by the scan itself: the first of the first group.
+  expect(await atlas.chosen()).toMatchObject({ path: '.claude/skills/issue-create/SKILL.md', updated: 'updated 2026-09-19' });
   await atlas.skills().filter({ hasText: 'issue-triage' }).click();
   const chosen = await atlas.chosen();
   expect(chosen.path).toBe('.claude/skills/issue-triage/SKILL.md');

@@ -4,6 +4,7 @@
 import { createServer, type Server } from 'node:http';
 import { AtlasError } from './core/errors.ts';
 import { parseGitHubOrganization } from './core/github.ts';
+import { groupSkills, groupWords } from './core/group.ts';
 import { skillLink } from './core/model.ts';
 import { scan, scanOrganization, type OrganizationSource, type Source } from './core/scan.ts';
 
@@ -79,12 +80,22 @@ async function scanWithText(input: string, open: (input: string) => Promise<Sour
     },
   });
   const decoder = new TextDecoder();
+  // The groups the skills fall into, by the words they share: their order is the page's, and each
+  // skill carries the word it is under, so the list can be drawn from the skills alone.
+  const groups = groupSkills(result.skills, result.repository.name);
+  const words = groupWords(groups);
   return {
     repository: result.repository,
     skills: result.skills.map((skill) => {
       const read = bytes.get(skill.path);
-      return { ...skill, link: skillLink(result.repository, skill), text: read ? decoder.decode(read) : '' };
+      return {
+        ...skill,
+        group: words.get(skill.id) ?? '',
+        link: skillLink(result.repository, skill),
+        text: read ? decoder.decode(read) : '',
+      };
     }),
+    groups: groups.map((group) => ({ word: group.word, skills: group.skills.length })),
     warnings: result.warnings,
   };
 }
@@ -112,6 +123,9 @@ const PAGE = `<!doctype html>
   #count { font-size: .85rem; opacity: .8; white-space: nowrap; }
   h1 { font-size: 1.1rem; margin: 0 0 .75rem; }
   ul { list-style: none; margin: 0; padding: 0; }
+  /* The word a group of skills shares, above them: a label, not something to choose. */
+  li.group { padding: .75rem .5rem .25rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+  li.group .word { font-weight: 600; }
   li.skill, li.repository { padding: .5rem; border-radius: 6px; cursor: pointer; }
   li.skill:hover, li.repository:hover { background: #8882; }
   li.skill[aria-selected="true"] { background: #4a90e233; }
@@ -172,6 +186,11 @@ function choose(item, skill) {
 // right stays chosen while the query narrows. Undefined while there is no list.
 let rendered;
 
+// The groups of the last scan's skills: each heading and the entries under it, so the filter can
+// hide a heading whose skills it has all hidden. Undefined for a list that has no groups at all —
+// an organization's repositories.
+let groups;
+
 function matches(entry, query) {
   return entry.texts.some((text) => text.toLowerCase().includes(query));
 }
@@ -194,6 +213,8 @@ function applyFilter() {
     item.hidden = !show;
     if (show) shown++;
   }
+  // A group is only there for the skills under it: with none of them left, the word goes too.
+  for (const group of groups ?? []) group.heading.hidden = group.entries.every((entry) => entry.item.hidden);
   count.textContent = shown + ' of ' + rendered.length;
 }
 
@@ -209,6 +230,7 @@ async function scan(input) {
   file.replaceChildren();
   // A scan starts from the whole list again: the previous query says nothing about these skills.
   rendered = undefined;
+  groups = undefined;
   filter.value = '';
   applyFilter();
   let answer;
@@ -222,30 +244,51 @@ async function scan(input) {
   if (answer.error) return results.replaceChildren(element('p', 'error', answer.error));
   if (answer.organization) return showOrganization(answer);
   rendered = [];
+  groups = [];
   const total = answer.skills.length;
   const items = element('ul');
-  for (const skill of answer.skills) {
-    const item = element('li', 'skill');
-    item.tabIndex = 0;
-    item.setAttribute('role', 'option');
-    item.append(element('div', 'name', skill.name));
-    if (skill.description) item.append(element('div', 'description', skill.description));
-    item.append(...updated(skill));
-    const link = element('a', 'link', skill.link);
-    link.href = skill.link;
-    link.target = '_blank';
-    item.append(link);
-    if (skill.copies.length) item.append(element('div', 'copies', 'also in ' + skill.copies.join(', ')));
-    item.addEventListener('click', (event) => { if (event.target !== link) choose(item, skill); });
-    item.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target !== link) choose(item, skill); });
-    items.append(item);
-    rendered.push({ item, texts: [skill.name, skill.description || ''] });
+  let first;
+  // One section per group of skills that share a word, in the scan's order, the word above it; the
+  // skills inside it keep the list's own order. A group whose skills the filter all hides goes with
+  // them, heading and count included, so the list never shows a word with nothing under it.
+  // One group is no division — the skills share a word with nothing, or all share the same one —
+  // and then the list is drawn as it was before there were groups.
+  const grouped = answer.groups.length > 1;
+  for (const group of answer.groups) {
+    const heading = element('li', 'group');
+    const members = answer.skills.filter((skill) => skill.group === group.word);
+    heading.append(element('span', 'word', group.word || 'other'));
+    heading.append(element('span', 'tally', ' · ' + group.skills + (group.skills === 1 ? ' skill' : ' skills')));
+    if (grouped) items.append(heading);
+    const entries = [];
+    for (const skill of members) {
+      const item = element('li', 'skill');
+      item.tabIndex = 0;
+      item.setAttribute('role', 'option');
+      item.append(element('div', 'name', skill.name));
+      if (skill.description) item.append(element('div', 'description', skill.description));
+      item.append(...updated(skill));
+      const link = element('a', 'link', skill.link);
+      link.href = skill.link;
+      link.target = '_blank';
+      item.append(link);
+      if (skill.copies.length) item.append(element('div', 'copies', 'also in ' + skill.copies.join(', ')));
+      item.addEventListener('click', (event) => { if (event.target !== link) choose(item, skill); });
+      item.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target !== link) choose(item, skill); });
+      items.append(item);
+      const entry = { item, texts: [skill.name, skill.description || ''] };
+      entries.push(entry);
+      rendered.push(entry);
+      first = first ?? { item, skill };
+    }
+    if (grouped) groups.push({ heading, entries });
   }
   results.replaceChildren(element('h1', '', answer.repository.id + ' · ' + total + (total === 1 ? ' skill' : ' skills')), items);
   showWarnings(answer.warnings);
   showFilter('skills');
-  const first = items.querySelector('li.skill');
-  if (first) choose(first, answer.skills[0]);
+  // The first skill of the list, which is the first of the first group: the strongest group's, not
+  // the first by name, as the list no longer shows them in that order alone.
+  if (first) choose(first.item, first.skill);
 }
 
 function showWarnings(list) {
@@ -259,6 +302,8 @@ function showWarnings(list) {
 // as if its URL had been typed into the field.
 function showOrganization(answer) {
   rendered = [];
+  // An organization's repositories are a plain list: a count is not something to group by a word.
+  groups = undefined;
   const total = answer.repositories;
   const items = element('ul');
   for (const repository of answer.withSkills) {

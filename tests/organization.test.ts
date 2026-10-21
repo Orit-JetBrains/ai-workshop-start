@@ -259,6 +259,21 @@ function account(login: string, type: 'Organization' | 'User', names: string[]):
 }
 
 /** What GitHub answers for one repository of the account: its commit and its trees. */
+test('an organization’s repositories are not grouped: a count is all each one has', async () => {
+  const scanned = await atlas({
+    ...account('JetBrains', 'Organization', ['csharp-sdk', 'kotlin-sdk', 'inspector']),
+    ...repository('JetBrains/csharp-sdk', ['.claude/skills/a/SKILL.md']),
+    ...repository('JetBrains/kotlin-sdk', ['.claude/skills/a/SKILL.md']),
+    ...repository('JetBrains/inspector', ['.claude/skills/a/SKILL.md']),
+  });
+  assert.equal(scanned.code, 0, scanned.stderr);
+  // `sdk` is in two of the three names, and groups nothing: the list is the repositories, by name.
+  assert.equal(
+    scanned.stdout,
+    ['JetBrains · 3 repositories, 3 with skills', 'csharp-sdk · 1 skill', 'inspector · 1 skill', 'kotlin-sdk · 1 skill'].join('\n'),
+  );
+});
+
 function repository(id: string, paths: string[], truncated: string[] = []): Recording {
   const sha = `sha-${id.replaceAll('/', '-')}`;
   return { [`${API}/repos/${id}/commits/main`]: { status: 200, body: { sha } }, ...trees(id, sha, paths, truncated) };

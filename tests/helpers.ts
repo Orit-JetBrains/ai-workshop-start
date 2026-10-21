@@ -1,4 +1,8 @@
 // Runs the commands the way the CLI does, with GitHub answering from EXAMPLE below.
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { run } from '../src/commands.ts';
 import { openGitHub, parseGitHubUrl } from '../src/core/github.ts';
@@ -89,4 +93,16 @@ export async function atlas(args: string[]) {
     error: (text) => stderr.push(text),
   });
   return { code, stdout: stdout.join('\n'), stderr: stderr.join('\n') };
+}
+
+/** A directory named `repo` with these files, removed after the test. */
+export function temporary(t: TestContext, files: Record<string, string>): string {
+  const parent = mkdtempSync(join(tmpdir(), 'skill-atlas-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const directory = join(parent, 'repo');
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(directory, path)), { recursive: true });
+    writeFileSync(join(directory, path), text);
+  }
+  return directory;
 }

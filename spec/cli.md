@@ -5,11 +5,19 @@ Prints the result **at once**; *nothing is stored*.
 ## Output
 ```
 JetBrains/kotlin · 6 skills
+
+gradle · 2 skills
 build-tools-bump-gradle-api — Bumps the Gradle API…
   updated 2026-03-14
   https://github.com/JetBrains/kotlin/blob/<commit>/…
+
+other · 1 skill
+…
 ```
-- Sorted by **name**; the description's *first sentence*
+- In **groups**, the word each one shares above it, as [the analysis](analysis.md#groups) finds them:
+  `<word> · <N> skills`, a blank line before it, the wordless group shown as `other` and printed last.
+  A repository whose skills make **one** group has no such line at all
+- Sorted by **name** within the group; the description's *first sentence*
 - `updated <date>` under the name: the skill's **last updated** date, as
   [the analysis](analysis.md#last-updated) reads it; a skill with *no* date has *no* such line
 - `also in <paths>` for copies; warnings go to *stderr*

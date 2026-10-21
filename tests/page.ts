@@ -86,6 +86,8 @@ export type Page = {
   count(): string;
   /** The name of every skill the list shows, in order; the hidden ones are left out. */
   visible(): string[];
+  /** The word above each group the list shows, with its count; the hidden groups are left out. */
+  groups(): string[];
   /** The name of the skill chosen on the right, or `null`. */
   chosen(): string | null;
   /** Whether the filter is shown at all. */
@@ -149,6 +151,11 @@ export async function openPage(address: string): Promise<Page> {
     },
     count: () => byId.get('count')!.text,
     visible: () => items().filter((item) => !item.hidden).map(name),
+    groups: () =>
+      results
+        .querySelectorAll('li.group')
+        .filter((heading) => !heading.hidden)
+        .map((heading) => heading.text),
     chosen() {
       const chosen = items().find((item) => item.getAttribute('aria-selected') === 'true');
       return chosen ? name(chosen) : null;

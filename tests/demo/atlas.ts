@@ -82,6 +82,11 @@ export class Atlas {
     return this.page.locator('#results li.skill:visible');
   }
 
+  /** The words above the groups of skills, the hidden ones left out, each with its count. */
+  groups(): Locator {
+    return this.page.locator('#results li.group:visible');
+  }
+
   /** The repositories an organization's list shows, the hidden ones left out. */
   repositories(): Locator {
     return this.page.locator('#results li.repository:visible');
