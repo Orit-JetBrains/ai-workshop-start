@@ -1,7 +1,8 @@
 // The skill-atlas commands. The same code serves the Node CLI and the browser
 // terminal: everything that differs between them comes in through the context.
+import { clusterSkills, type ClusterOptions } from './core/cluster.ts';
 import { AtlasError } from './core/errors.ts';
-import { divides, groupSkills } from './core/group.ts';
+import { divides, groupSkills, type SkillGroup } from './core/group.ts';
 import { parseGitHubOrganization } from './core/github.ts';
 import { skillLink, type Repository, type Skill } from './core/model.ts';
 import { scan, scanOrganization, type OrganizationScanResult, type OrganizationSource, type Source } from './core/scan.ts';
@@ -16,11 +17,14 @@ export type Context = {
   error(text: string): void;
   /** Starts the local web view; resolves to its address. The Node CLI only. */
   serve?(port: number): Promise<string>;
+  /** How `--cluster` reaches `claude -p`. The Node CLI only; the tests answer for it. */
+  cluster?: ClusterOptions;
 };
 
 const usage = `Usage: skill-atlas <command>
 
   scan <GitHub URL | directory>   find every project skill in a repository and print it
+  scan <input> --cluster          group them with claude -p instead of by the words they share
   scan github.com/<organization>  how many skills each repository of an organization has
   serve [port]                    a local web page: a repository's skills and their SKILL.md
   help                            show this help`;
@@ -42,18 +46,27 @@ export async function run(args: string[], context: Context): Promise<number> {
 }
 
 async function scanCommand(args: string[], context: Context) {
-  if (args.length !== 1) throw new AtlasError('Usage: skill-atlas scan <GitHub URL | organization | directory>');
+  // `--cluster` asks a model for the groups; anything else is the input to scan.
+  const cluster = args.includes('--cluster');
+  const rest = args.filter((argument) => argument !== '--cluster');
+  if (rest.length !== 1) throw new AtlasError('Usage: skill-atlas scan <GitHub URL | organization | directory> [--cluster]');
   // A GitHub URL with no repository part is an organization or a user account: its repositories.
-  if (parseGitHubOrganization(args[0])) {
+  if (parseGitHubOrganization(rest[0])) {
+    if (cluster) throw new AtlasError('--cluster groups the skills of a repository; an organization is a count per repository');
     if (!context.openOrganization) throw new AtlasError('Scanning an organization runs in the Node CLI only');
-    const result = await scanOrganization(await context.openOrganization(args[0]));
+    const result = await scanOrganization(await context.openOrganization(rest[0]));
     printOrganization(result, context);
     for (const warning of result.warnings) context.error(`warning: ${warning}`);
     return;
   }
-  const result = await scan(await context.open(args[0]));
-  printRepository(result.repository, result.skills, context);
-  for (const warning of result.warnings) context.error(`warning: ${warning}`);
+  const result = await scan(await context.open(rest[0]));
+  // The groups: the model's when asked for, the shared words' otherwise, and the shared words' when
+  // the model cannot be asked — with a warning that says so.
+  const grouped = cluster
+    ? await clusterSkills(result.skills, result.repository.name, context.cluster)
+    : { groups: groupSkills(result.skills, result.repository.name), warnings: [] };
+  printRepository(result.repository, result.skills, grouped.groups, context);
+  for (const warning of [...result.warnings, ...grouped.warnings]) context.error(`warning: ${warning}`);
 }
 
 async function serveCommand(args: string[], context: Context) {
@@ -78,9 +91,8 @@ function printOrganization(result: OrganizationScanResult, { print }: Context) {
  * `<owner>/<repo> · N skills`, then each group of skills that share a word — the word above them —
  * and in it each skill's name, first sentence, date and link.
  */
-function printRepository(repository: Repository, skills: Skill[], { print }: Context) {
+function printRepository(repository: Repository, skills: Skill[], groups: SkillGroup[], { print }: Context) {
   print(`${repository.id} · ${skills.length} ${skills.length === 1 ? 'skill' : 'skills'}`);
-  const groups = groupSkills(skills, repository.name);
   const grouped = divides(groups);
   for (const group of groups) {
     if (grouped) {

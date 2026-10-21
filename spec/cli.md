@@ -1,7 +1,10 @@
 # Command line
-`./skill-atlas scan <GitHub URL | directory>`
+`./skill-atlas scan <GitHub URL | directory> [--cluster]`
 Prints the result **at once**; *nothing is stored*.
 `GITHUB_TOKEN`, optional: a higher GitHub rate limit.
+`--cluster`: the groups come from `claude -p` and the small model, as
+[the analysis](analysis.md#clustering-with-a-model) asks for them, instead of from the words the skills
+share; a model that cannot be asked costs a *warning*, not the scan. Not for an organization.
 ## Output
 ```
 JetBrains/kotlin · 6 skills

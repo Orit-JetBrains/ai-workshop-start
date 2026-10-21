@@ -22,11 +22,14 @@ Prints the address; it only listens on **127.0.0.1**. `GITHUB_TOKEN` works as fo
   list; a scan empties it
 - The filter looks in the **name** and the **description** alone: a date is not matched
 - A skill, chosen: its path, its **last updated** date, and its **SKILL.md**, the whole file as text, front matter included
+- `cluster=1` in the address: the groups come from `claude -p`, as
+  [the analysis](analysis.md#clustering-with-a-model) asks for them, for every scan the page makes while
+  it is there — a repository chosen from an organization included; its warnings are the page's warnings
 - The first skill of the **list** is chosen after a scan — the first of the first group, which a group
   is only as `other` when nothing groups; `?repo=<input>` in the address scans it on load
 - Unreachable repository, or any other error → its message, in the page
 ## API
-`GET /api/scan?repo=<input>` → JSON: `repository`, `skills` (each with its `link`, its `updatedAt`, an **ISO-8601**
+`GET /api/scan?repo=<input>[&cluster=1]` → JSON: `repository`, `skills` (each with its `link`, its `updatedAt`, an **ISO-8601**
 date (`2026-03-14`) or `""` when it has none, its SKILL.md `text`, and its `group`, the word it shares — `""`
 for the wordless one), `groups` (the groups in the order the page draws them: each one's `word` and how many
 `skills` it has), `warnings`
