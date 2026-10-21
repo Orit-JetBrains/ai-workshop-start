@@ -23,8 +23,47 @@ with `AGENTS.md`, `AGENTS.md` wins.
    criteria and any linked discussion.
 2. Read the spec in [spec/](../../../spec/) first. The implementation must match
    the spec; update the spec in the same change when the issue changes behavior.
-3. If the issue is ambiguous or underspecified, ask the user before writing code
-   rather than guessing.
+3. If the issue leaves a decision open, **ask, wait, then go on**: see
+   [An open decision](#an-open-decision-ask-wait-go-on). Never guess.
+
+### An open decision: ask, wait, go on
+
+An issue leaves a decision open when it lists open questions, offers options
+without picking one, or can reasonably be built two ways that a user would
+see differently. Ask before writing code for that part.
+
+1. **Ask in the channel the issue came from**, where the person who can answer
+   will see it:
+   - **Someone is in this session** (they handed you the issue in chat): ask
+     them there, with the structured question tool if there is one.
+   - **The run was started from the issue** (an automation, with nobody in
+     the session): comment on the issue and mention its author,
+     `gh issue comment <number> --body "…"`.
+
+   Ask each open decision as one question: what is undecided, two to four
+   concrete options, what each costs, and which one you recommend and why.
+   Ask them all at once, not one per round.
+2. **Wait for the answer.** In chat, the answer comes back to you. On the
+   issue, wait in the run itself: check for a new comment after yours once a
+   minute, for up to 30 minutes, in foreground commands of under 10 minutes
+   each:
+
+   ```bash
+   gh issue view <number> --json comments \
+     -q '[.comments[] | select(.createdAt > "<your comment time>")] | length'
+   ```
+
+   This is the one wait this skill does: the work cannot go on without the
+   answer. It is not the review wait that
+   [the hand-off](#5-hand-the-pr-off--dont-poll-for-the-review) forbids.
+3. **Go on with the answer.** Implement what was chosen, and record each
+   decision and who made it in the PR body, under *Decisions*, linking the
+   comment or quoting the chat answer.
+
+If no answer comes within the wait, do not pick for them. Comment on the
+issue that the work is paused on the question, report that plainly, and stop.
+The parts the open decision does not touch may still be built and pushed, but
+open no PR until it is answered.
 
 ## 2. Implement with tests
 
