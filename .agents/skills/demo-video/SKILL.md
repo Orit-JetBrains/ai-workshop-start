@@ -36,6 +36,7 @@ recorded organization-and-filter → docs/demo/organization-and-filter.mp4
 | `organization-scan` | The organization scan alone — the repositories with skills and their counts |
 | `repository-and-filter` | One repository typed in directly: its skills, the filter over them, a SKILL.md |
 | `unreachable-repository` | The error path: the message in the page, not a blank list |
+| `problem-and-solution` | The promotional take, ~30 s: ten seconds of the problem as a cartoon — a developer who cannot tell which of their organization's repositories have skills — then the scan, a repository's skills and the filter. Checked in as `docs/demo/skill-atlas-promo.mp4` |
 
 Options:
 
@@ -79,6 +80,11 @@ cannot do; do not claim a video plays inline without having seen it do so.
 
 - **Captions, not sound.** `record.mjs` overlays a caption strip by `page.evaluate`; the served
   page is never modified for a recording. A video that needs narration explains nothing in a PR.
+- **Anything that is not the app is its own page.** `problem-and-solution` opens on a cartoon of
+  the problem: that is [scripts/intro.html](scripts/intro.html), visited by the same page before it
+  navigates to the server, so one take covers both and nothing is spliced afterwards. Its beats are
+  pushed one at a time (`window.beat(n, html)`) rather than run as one long CSS timeline, so a slow
+  frame cannot leave the drawing describing a beat the hold times have moved past.
 - **Typing is visible.** Values are typed a character at a time (`delay: 55`); a field that fills
   in one frame reads as a cut.
 - **The filter hides entries with `hidden`.** A hidden `li` cannot be hovered or clicked, so

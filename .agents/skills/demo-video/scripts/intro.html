@@ -1,0 +1,210 @@
+<!doctype html>
+<!--
+  The ten seconds before the product: the problem, drawn.
+
+  A developer stands in front of their organization's repositories and cannot tell which of them
+  carry skills. Beats are driven from the scenario — `document.body.dataset.beat = '2'` — rather than
+  by one long CSS timeline, so a slow frame cannot desynchronise the drawing from the caption.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>skill-atlas — the problem</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 760px;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 35%, #fdfbff 0%, #eef0fb 55%, #e4e7f7 100%);
+        font: 400 16px/1.4 system-ui, sans-serif;
+        color: #1b1b2b;
+        display: grid;
+        place-items: center;
+      }
+      .stage { position: relative; width: 1180px; height: 620px; }
+
+      /* The repositories: a wall of them, which is the whole point. */
+      .repos {
+        position: absolute;
+        inset: 0 0 auto 0;
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        gap: 10px;
+        padding: 0 30px;
+      }
+      .repo {
+        position: relative;
+        height: 54px;
+        border-radius: 9px;
+        background: #fff;
+        border: 1px solid #d7dbee;
+        box-shadow: 0 2px 6px #1b1b2b0f;
+        display: grid;
+        place-items: center;
+        font: 600 11px/1 ui-monospace, monospace;
+        color: #8a90ad;
+        opacity: 0;
+        transform: translateY(-14px);
+        animation: drop .5s ease-out forwards;
+      }
+      @keyframes drop { to { opacity: 1; transform: none; } }
+
+      /* A question mark per card, in its corner — over the label it would read as a glitch. */
+      .repo::after {
+        content: '?';
+        position: absolute;
+        top: -11px;
+        right: -8px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #c0392b;
+        color: #fff;
+        font: 700 15px/24px system-ui, sans-serif;
+        text-align: center;
+        box-shadow: 0 2px 5px #c0392b40;
+        opacity: 0;
+        transform: scale(.4);
+        transition: opacity .4s ease, transform .4s cubic-bezier(.3, 1.6, .5, 1);
+      }
+      body[data-beat='2'] .repo::after,
+      body[data-beat='3'] .repo::after { opacity: 1; transform: none; }
+
+      /* The character. */
+      .person {
+        position: absolute;
+        left: 50%;
+        bottom: 0;
+        transform: translateX(-50%);
+        transition: transform .5s ease;
+      }
+      body[data-beat='3'] .person { transform: translateX(-50%) translateY(12px); }
+      .eye { transform-origin: center; animation: blink 3.4s infinite; }
+      @keyframes blink {
+        0%, 92%, 100% { transform: scaleY(1); }
+        95% { transform: scaleY(.1); }
+      }
+      /* One drawn pose per beat: arms standing, then scratching the head, then a shrug. A rotation
+         off a shoulder swings the arm across the torso instead, which reads as a broken drawing. */
+      /* The smile goes when the shrug comes. */
+      .mouth-flat { display: none; }
+      body[data-beat='3'] .mouth { display: none; }
+      body[data-beat='3'] .mouth-flat { display: block; }
+
+      [data-pose] { display: none; }
+      body[data-beat='1'] [data-pose='stand'],
+      body[data-beat='2'] [data-pose='scratch'],
+      body[data-beat='3'] [data-pose='shrug'] { display: block; }
+
+      /* The speech bubble. */
+      .bubble {
+        position: absolute;
+        left: 50%;
+        bottom: 300px;
+        transform: translateX(-50%) scale(.92);
+        min-width: 520px;
+        max-width: 760px;
+        padding: 20px 28px;
+        border-radius: 18px;
+        background: #fff;
+        border: 1px solid #d7dbee;
+        box-shadow: 0 12px 30px #1b1b2b1f;
+        text-align: center;
+        font: 600 27px/1.35 system-ui, sans-serif;
+        opacity: 0;
+        transition: opacity .35s ease, transform .35s ease;
+      }
+      .bubble.shown { opacity: 1; transform: translateX(-50%) scale(1); }
+      .bubble::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: -13px;
+        width: 24px;
+        height: 24px;
+        margin-left: -12px;
+        background: #fff;
+        border-right: 1px solid #d7dbee;
+        border-bottom: 1px solid #d7dbee;
+        transform: rotate(45deg);
+      }
+      .bubble em { font-style: normal; color: #c0392b; }
+      .bubble small { display: block; margin-top: 8px; font: 400 18px/1.4 system-ui, sans-serif; color: #6b7190; }
+    </style>
+  </head>
+  <body data-beat="1">
+    <div class="stage">
+      <div class="repos" id="repos"></div>
+
+      <div class="bubble" id="bubble"></div>
+
+      <svg class="person" width="300" height="330" viewBox="0 0 300 330" aria-label="A developer looking for skills">
+        <ellipse cx="150" cy="322" rx="86" ry="8" fill="#1b1b2b14" />
+        <!-- legs and body -->
+        <path d="M118 318V250h64v68" stroke="#3b4168" stroke-width="15" fill="none" stroke-linecap="round" />
+        <path d="M150 150c30 0 46 20 46 50v60h-92v-60c0-30 16-50 46-50z" fill="#4f5bd5" />
+
+        <!-- beat 1: standing, arms at the sides -->
+        <g data-pose="stand">
+          <path d="M196 186 L208 252" stroke="#4452c4" stroke-width="15" fill="none" stroke-linecap="round" />
+          <circle cx="209" cy="257" r="11" fill="#f2c9a0" />
+          <path d="M104 186 L92 252" stroke="#4452c4" stroke-width="15" fill="none" stroke-linecap="round" />
+          <circle cx="91" cy="257" r="11" fill="#f2c9a0" />
+        </g>
+        <!-- beat 2: a hand up at the head -->
+        <g data-pose="scratch">
+          <path d="M196 186 L216 136 L190 92" stroke="#4452c4" stroke-width="15" fill="none"
+                stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="188" cy="88" r="11" fill="#f2c9a0" />
+          <path d="M104 186 L92 252" stroke="#4452c4" stroke-width="15" fill="none" stroke-linecap="round" />
+          <circle cx="91" cy="257" r="11" fill="#f2c9a0" />
+        </g>
+        <!-- beat 3: the shrug, both palms out -->
+        <g data-pose="shrug">
+          <path d="M196 188 L228 212 L238 176" stroke="#4452c4" stroke-width="15" fill="none"
+                stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="239" cy="171" r="11" fill="#f2c9a0" />
+          <path d="M104 188 L72 212 L62 176" stroke="#4452c4" stroke-width="15" fill="none"
+                stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="61" cy="171" r="11" fill="#f2c9a0" />
+        </g>
+        <!-- head -->
+        <circle cx="150" cy="104" r="48" fill="#f2c9a0" />
+        <path d="M104 96a46 46 0 0 1 92 0c-18-10-30-22-46-22s-28 12-46 22z" fill="#3b4168" />
+        <circle class="eye" cx="134" cy="108" r="5" fill="#1b1b2b" />
+        <circle class="eye" cx="166" cy="108" r="5" fill="#1b1b2b" />
+        <path class="mouth" d="M138 128q12 8 24 0" stroke="#1b1b2b" stroke-width="4" fill="none" stroke-linecap="round" />
+        <path class="mouth-flat" d="M138 130q12 -7 24 0" stroke="#1b1b2b" stroke-width="4" fill="none" stroke-linecap="round" />
+      </svg>
+    </div>
+
+    <script>
+      // A name for each card: enough of them that reading the wall is clearly not the answer.
+      const names = [
+        'api-gateway', 'web-client', 'billing', 'auth-service', 'docs-site', 'infra', 'mobile-app',
+        'data-pipeline', 'design-system', 'search', 'notifier', 'sdk-python', 'sdk-kotlin',
+        'crm-sync', 'reporting', 'edge-proxy', 'scheduler', 'legacy-admin',
+      ];
+      const container = document.getElementById('repos');
+      names.forEach((name, index) => {
+        const card = document.createElement('div');
+        card.className = 'repo';
+        card.textContent = name;
+        card.style.animationDelay = `${index * 55}ms`;
+        container.append(card);
+      });
+
+      // Driven from the scenario, so the drawing and the caption stay in step.
+      window.beat = (number, html) => {
+        document.body.dataset.beat = String(number);
+        const bubble = document.getElementById('bubble');
+        bubble.classList.remove('shown');
+        if (!html) return;
+        bubble.innerHTML = html;
+        requestAnimationFrame(() => bubble.classList.add('shown'));
+      };
+    </script>
+  </body>
+</html>
