@@ -192,6 +192,11 @@ function runCommand(command: string, args: string[], { timeout }: { timeout: num
       failure = `no answer in ${Math.round(timeout / 1000)}s`;
       child.kill('SIGKILL');
     }, timeout);
+    // Decode as UTF-8 per stream, not per chunk: a multi-byte character split across two `data`
+    // chunks would become replacement characters if each Buffer were stringified on its own, and a
+    // mangled envelope reads as "its output is not JSON" and falls back for no real reason.
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
     child.stdout.on('data', (chunk) => (stdout += chunk));
     child.stderr.on('data', (chunk) => (stderr += chunk));
     child.once('error', (error) => {
