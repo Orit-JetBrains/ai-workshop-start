@@ -13,6 +13,12 @@
 // `options` carries the case's inputs, so a new demo of the same shape needs no new code:
 // `record.mjs <case> --set organization=JetBrains --set filter=kotlin`.
 
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+
+/** intro.html: the ten seconds of problem a promotional take opens with. */
+const INTRO = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'intro.html')).href;
+
 /** A repository picked from an organization's list and a filter query that matches some of it. */
 const defaults = {
   organization: 'modelcontextprotocol',
@@ -70,7 +76,71 @@ async function openSkill({ caption, wait, choose }) {
   await wait(3400);
 }
 
+/**
+ * The cartoon opening: a developer in front of their organization's repositories who cannot tell
+ * which carry skills. Three beats, ten seconds, in intro.html — a separate page, so the served app
+ * stays untouched here too. Beats are pushed one by one instead of run as a CSS timeline, so the
+ * drawing cannot drift from the hold times.
+ */
+async function problemIntro({ page, wait }) {
+  await page.goto(INTRO);
+  const beat = (number, html) => page.evaluate(([n, h]) => window.beat(n, h), [number, html]);
+
+  await wait(700);
+  await beat(1, 'Our organization has <em>45 repositories</em>.<small>Somewhere in there: agent skills.</small>');
+  await wait(2500);
+
+  await beat(2, 'Which of them have <em>skills</em>?<small>Which skills? In which folder? Still maintained?</small>');
+  await wait(3200);
+
+  await beat(3, 'Nobody knows. <em>There is no list.</em><small>So every team writes the same skill again.</small>');
+  await wait(2800);
+}
+
 export const scenarios = {
+  /**
+   * The promotional take: ten seconds of the problem, drawn, then the product answering it. Thirty
+   * seconds all told — the one that goes in a post, where `organization-and-filter` is the one that
+   * goes in a pull request.
+   */
+  'problem-and-solution': {
+    description: 'A cartoon of the problem (10 s), then the organization scan and the filter (20 s)',
+    defaults,
+    async run(context, options) {
+      const { page, caption, type, wait, choose, countText, headingText } = context;
+      const app = page.url();
+
+      await problemIntro(context);
+
+      await page.goto(app);
+      await caption('skill-atlas — one URL, and every SKILL.md in the organization');
+      await wait(900);
+      await type('#repo', `github.com/${options.organization}`);
+      await page.click('form#scan button');
+      await caption('Scanning every repository of the organization…');
+      await page.waitForSelector('#results li.repository', { timeout: 120_000 });
+
+      const heading = (await page.textContent('#list h1'))?.trim();
+      await caption(`${heading} — the ones that have skills, with their count`);
+      await wait(2200);
+
+      // Set before the click, not after: the list renders faster than `waitForSelector` returns, so
+      // a caption written afterwards is briefly stale over the screen it no longer describes.
+      await caption('Choosing a repository shows its skills');
+      await choose('repository', options.repository);
+      await page.waitForSelector('#results li.skill', { timeout: 120_000 });
+      await caption(`${await headingText()} — each one with its description, its date and its link`);
+      await wait(2400);
+
+      await type('#filter', options.skillFilter);
+      await caption(`Filtered to “${options.skillFilter}”: ${await countText()} skills`);
+      await wait(1800);
+
+      await caption('skill-atlas — your organization’s skills, found');
+      await wait(1400);
+    },
+  },
+
   /** Both features in one take — the recording checked in as docs/demo/skill-atlas-demo.mp4. */
   'organization-and-filter': {
     description: 'The organization scan, the filter over both lists, and a skill’s SKILL.md',
