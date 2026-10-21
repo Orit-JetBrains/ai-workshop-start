@@ -32,21 +32,28 @@ An issue leaves a decision open when it lists open questions, offers options
 without picking one, or can reasonably be built two ways that a user would
 see differently. Ask before writing code for that part.
 
-1. **Ask in the channel the issue came from**, where the person who can answer
-   will see it:
-   - **Someone is in this session** (they handed you the issue in chat): ask
-     them there, with the structured question tool if there is one.
-   - **The run was started from the issue** (an automation, with nobody in
-     the session): comment on the issue and mention its author,
-     `gh issue comment <number> --body "…"`.
+1. **Ask in the team's channel**: the private Slack channel
+   **`#workshop-test-channel`** in the
+   [aiworkshopatjetbrains](https://aiworkshopatjetbrains.slack.com) workspace.
+   That is where the person who can answer looks, whoever started the run.
+   Post it with the run's Slack tool, as one message that links the issue.
 
    Ask each open decision as one question: what is undecided, two to four
    concrete options, what each costs, and which one you recommend and why.
-   Ask them all at once, not one per round.
-2. **Wait for the answer.** In chat, the answer comes back to you. On the
-   issue, wait in the run itself: check for a new comment after yours once a
-   minute, for up to 30 minutes, in foreground commands of under 10 minutes
-   each:
+   Ask them all at once, in that one message, not one per round.
+
+   **No Slack tool in this run?** Do not ask anywhere else in its place
+   silently. Comment on the issue instead (`gh issue comment <number>`),
+   mention its author, and say in the comment that Slack was not reachable
+   from the run.
+2. **Wait for the answer, in the message's thread.** Read the replies to your
+   message, not the channel's newest messages: another conversation there is
+   not an answer. Check once a minute, for up to 30 minutes, in foreground
+   commands of under 10 minutes each. An answer is a reply from a person, not
+   a bot; a reply that asks you something back is answered in the thread, and
+   the wait goes on.
+
+   On the issue fallback, the same wait, on comments after yours:
 
    ```bash
    gh issue view <number> --json comments \
@@ -58,10 +65,11 @@ see differently. Ask before writing code for that part.
    [the hand-off](#5-hand-the-pr-off--dont-poll-for-the-review) forbids.
 3. **Go on with the answer.** Implement what was chosen, and record each
    decision and who made it in the PR body, under *Decisions*, linking the
-   comment or quoting the chat answer.
+   Slack reply or the issue comment, or quoting it.
 
-If no answer comes within the wait, do not pick for them. Comment on the
-issue that the work is paused on the question, report that plainly, and stop.
+If no answer comes within the wait, do not pick for them. Say in the thread,
+and on the issue, that the work is paused on the question; report that
+plainly, and stop.
 The parts the open decision does not touch may still be built and pushed, but
 open no PR until it is answered.
 
