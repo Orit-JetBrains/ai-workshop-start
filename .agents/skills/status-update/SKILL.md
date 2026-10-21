@@ -83,13 +83,40 @@ Then:
   *no linked issue*:
 
   ```bash
-  gh pr view <n> --json body -q .body | grep -oiE '\b(close[sd]?|fix(ed|es)?|resolve[sd]?):? #[0-9]+'
-  gh pr view <n> --json headRefName -q .headRefName   # issue-to-pr names branches <number>-<slug>
+  # Every closing keyword GitHub accepts, any spacing, and the bare number out.
+  gh pr view <n> --json body -q .body \
+    | grep -oiE '(^|[^[:alnum:]])(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))[[:space:]]*:?[[:space:]]*#[0-9]+' \
+    | grep -oE '[0-9]+'
+  # A branch is a candidate only in the <number>-<slug> shape issue-to-pr gives it.
+  gh pr view <n> --json headRefName -q .headRefName | sed -nE 's/^([0-9]+)-.*/\1/p'
+  # And a candidate is only an issue once the issue says so.
+  gh issue view <candidate> --json number,title,state -q '.number, .title, .state'
   ```
 
   Both run from the PR and yield an **issue** number. Say *no linked issue* only
   once `closingIssuesReferences`, the body and the branch name have all come up
   empty.
+
+  Two traps in those two lines, both of which produce a **wrong** issue number
+  rather than none — the failure this skill calls worse than a late update:
+
+  - The keyword list is GitHub's whole set (`close`, `closes`, `closed`, `fix`,
+    `fixes`, `fixed`, `resolve`, `resolves`, `resolved`), the separator allows
+    any spacing or none, and the second `grep` strips the keyword so the number
+    is the number. Do not use `\b`, and do not reach for a lookahead such as
+    `(?=-)`: neither is in POSIX ERE, so both are a GNU extension that fails on
+    macOS's BSD `grep`. Where a match has to be split, `sed -nE 's/…/\1/p'` does
+    it portably, as the branch line does.
+  - A branch counts **only** when a number is followed by `-`. `2026-redesign`
+    and `44-cleanup`, where 44 is not an issue, both begin with a number and
+    neither names an issue — and `2026-redesign` *matches the shape*, which is
+    why the branch is only ever a **candidate**: confirm it with `gh issue view`
+    and read the title back before printing a link, and treat a non-matching
+    branch, a missing issue or a title about something else as no signal. An
+    empty alternative (`fix(|es|ed)`) is likewise not ERE: write `fix(es|ed)?`,
+    or greps that validate the expression reject the whole pattern. The leading
+    `(^|[^[:alnum:]])` is the portable word boundary `\b` would have been —
+    without it, *"this also affixes #99"* reads as a closing keyword.
 
   The reverse direction, naming the PR that closed an issue whose number you
   already have, is a separate lookup: the issue's timeline carries the closing
@@ -97,13 +124,23 @@ Then:
   merge commit is needed.
 
   ```bash
-  gh api repos/<owner>/<repo>/issues/<issue>/timeline \
+  # --paginate: the timeline is 30 events a page, and the closing one is often not on the first.
+  gh api --paginate -H 'Accept: application/vnd.github+json' \
+    repos/<owner>/<repo>/issues/<issue>/timeline \
     --jq '[.[] | select(.event=="closed" and .commit_id)] | last | .commit_id'
   gh api repos/<owner>/<repo>/commits/<commit>/pulls -q '.[].number'
   ```
 
   Take the **last** `closed` event that carries a `commit_id`: an issue closed
-  by hand has none, and a reopen-then-close has more than one.
+  by hand has none, and a reopen-then-close has more than one. Without
+  `--paginate`, an issue with a long timeline — label churn, cross-references, a
+  reopen cycle — hides its closing event on a later page, and `last` then picks
+  an earlier close or nothing at all.
+
+  The second call can come back **empty on a commit that exists**: a commit
+  pushed straight to the default branch closed the issue without a pull request,
+  so it carries a `commit_id` but belongs to no PR. That is not a lookup to retry
+  — write the line as *closed by commit `<short sha>`, no PR*, and move on.
 - **Mark what each item is.** Every line opens with its kind, so a reader never
   has to guess whether a number is a PR or an issue: **`PR`**, **`issue`**, or
   **`bug`** for an issue carrying the `bug` label (read `labels`, which every
@@ -159,19 +196,46 @@ same one [issue-to-pr](../issue-to-pr/SKILL.md) asks its questions in.
 request overrides both. Resolve a name to its ID before posting, and never
 guess one:
 
-```bash
-curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-  'https://slack.com/api/conversations.list?types=private_channel,public_channel&limit=1000' \
-  | jq -r '.channels[] | "\(.id)\t\(.name)"'
-```
-
-`jq` is not installed everywhere; `python3` does the same parse where it is not:
+`conversations.list` is **paged**: `limit` is the size of one page, not of the
+answer, so a workspace with more channels than that returns a first page and a
+`response_metadata.next_cursor`. Stopping at the first page is how a channel
+that exists is reported missing — follow the cursor until it comes back empty:
 
 ```bash
-curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-  'https://slack.com/api/conversations.list?types=private_channel,public_channel&limit=1000' \
-  | python3 -c 'import json,sys; [print(c["id"], c["name"], sep="\t") for c in json.load(sys.stdin)["channels"]]'
+cursor=''
+while :; do
+  page=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+    "https://slack.com/api/conversations.list?types=private_channel,public_channel&limit=200&cursor=$cursor")
+  echo "$page" | jq -r '.channels[] | "\(.id)\t\(.name)"'
+  cursor=$(echo "$page" | jq -r '.response_metadata.next_cursor // ""')
+  [ -n "$cursor" ] || break
+done
 ```
+
+`jq` is not installed everywhere; `python3` does the same walk where it is not:
+
+```bash
+python3 - <<'EOF'
+import json, os, urllib.parse, urllib.request
+cursor, out = '', []
+while True:
+    query = urllib.parse.urlencode({'types': 'private_channel,public_channel', 'limit': 200, 'cursor': cursor})
+    request = urllib.request.Request(f'https://slack.com/api/conversations.list?{query}',
+                                     headers={'Authorization': f"Bearer {os.environ['SLACK_BOT_TOKEN']}"})
+    answer = json.load(urllib.request.urlopen(request))
+    if not answer.get('ok'):
+        raise SystemExit(f"conversations.list: {answer.get('error')}")
+    out += [(c['id'], c['name']) for c in answer['channels']]
+    cursor = answer.get('response_metadata', {}).get('next_cursor', '')
+    if not cursor:
+        break
+print('\n'.join(f'{i}\t{n}' for i, n in out))
+EOF
+```
+
+A name that is absent from **every** page is a channel the bot cannot see —
+usually a private channel it was never invited to. Say that; do not fall back to
+posting in another channel, and never pass the name where an ID belongs.
 
 Post with `chat.postMessage`, the body from a file so no quoting mangles it.
 Build the payload with `jq`, or with `python3` where `jq` is missing:
