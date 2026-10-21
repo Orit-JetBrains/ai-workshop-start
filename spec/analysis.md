@@ -66,6 +66,31 @@ topics — the words the skills' own authors chose are the grouping
 - Only the **name and the description** are read, never the SKILL.md body, and *nothing is stored*
 - An organization's repositories are **not** grouped: a count is all each one has
 
+## Clustering with a model
+The groups can come from a **model** instead of from the words the skills share: `claude -p`, the Claude
+Code CLI in *print mode*, asked for them. Opt in — `--cluster`, `cluster=1` — because a model is not a
+scan: it is a *process away*, needs a **logged-in CLI**, costs a fraction of a cent, and does not answer
+the same way twice, where [the shared words](#groups) answer the same way on any machine, offline
+- **The small model**, `claude-haiku-4-5`: grouping a handful of short texts needs no more. `claude -p
+  <prompt> --output-format json --model claude-haiku-4-5 --permission-prompts none --system-prompt …`;
+  a grouping is a text answer, so no tool may run for it and nothing waits for a human to allow one
+- It is shown each skill **by number**, its **name** and the first 240 characters of its **description** —
+  never the SKILL.md body — and asked for at most **8 groups of two or more**, each labelled with one
+  lowercase word of the skills' own, and not the repository's own name, as for the shared words
+- It answers `{"groups":[{"label":"<word>","skills":[<numbers>]}]}`, in the CLI's `result`; a code fence
+  around it is allowed for, nothing else is
+- The answer is the model's, the **groups are the scan's**: a label that is not a word, or is too long,
+  is *dropped*; a number that is not a skill's, or is a skill another group already took, is *dropped*;
+  a group of fewer than two is *dropped*; what is left over is the **wordless** group, `other`, last.
+  Inside a group the skills keep the scan's order, **by name**, whatever order the model gave
+- **Every failure is a warning, and the shared words group the skills**
+  (`<command>: <message>; grouped by shared words instead`), because a grouping that failed is not worth
+  a scan: no CLI on the PATH, a CLI that is **not logged in**, one that times out (**120 s**), an answer
+  that is not the JSON it was asked for, or groups that do not divide the skills
+- Fewer than **three** skills are not worth asking about: the shared words group them, with no warning
+- `SKILL_ATLAS_CLAUDE` names another CLI to run, `SKILL_ATLAS_CLAUDE_MODEL` another model to ask
+- An organization is **not** clustered: a count per repository has nothing to group
+
 ## An organization
 A **GitHub URL with no repository part** (`github.com/JetBrains`): every repository of the
 organization — or of a **user account**, as both are listed — and how many project skills each has

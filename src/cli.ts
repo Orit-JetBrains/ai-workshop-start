@@ -20,10 +20,17 @@ const open = async (input: string) => {
 
 const organization = (input: string) => openOrganization(input, { fetch, token });
 
+/**
+ * How `--cluster` reaches the model: `claude -p`, on the PATH, unless `SKILL_ATLAS_CLAUDE` names
+ * another CLI — a CLI elsewhere, or, in the tests, one that answers without a model at all.
+ */
+const cluster = { command: process.env.SKILL_ATLAS_CLAUDE || undefined, model: process.env.SKILL_ATLAS_CLAUDE_MODEL || undefined };
+
 process.exitCode = await run(process.argv.slice(2), {
   open,
   openOrganization: organization,
   print: (text) => console.log(text),
   error: (text) => console.error(text),
-  serve: async (port) => (await serve(port, open, organization)).url,
+  serve: async (port) => (await serve(port, open, organization, cluster)).url,
+  cluster,
 });

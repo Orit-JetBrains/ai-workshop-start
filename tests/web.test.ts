@@ -37,6 +37,31 @@ const address = await new Promise<string>((resolve, reject) => {
 });
 test.after(() => cli.kill());
 
+// A second server, for `cluster=1`: the same `serve`, with a stand-in for `claude -p` that answers
+// with groups of its own. Nothing here reaches a model, a login or the network.
+const clusterDirectory = mkdtempSync(join(tmpdir(), 'skill-atlas-cluster-'));
+test.after(() => rmSync(clusterDirectory, { recursive: true, force: true }));
+const STAND_IN_GROUPS = { groups: [{ label: 'reviewing', skills: [5, 6, 1] }, { label: 'shipping', skills: [3, 4] }] };
+writeFileSync(
+  join(clusterDirectory, 'claude.mjs'),
+  `process.stdout.write(JSON.stringify({ type: 'result', is_error: false, result: ${JSON.stringify(JSON.stringify(STAND_IN_GROUPS))} }));`,
+);
+writeFileSync(join(clusterDirectory, 'claude'), `#!/bin/sh\nexec ${process.execPath} ${join(clusterDirectory, 'claude.mjs')} \"$@\"\n`, { mode: 0o755 });
+const clusterCli = spawn(process.execPath, [CLI, 'serve', '0'], {
+  stdio: ['ignore', 'pipe', 'pipe'],
+  env: { ...process.env, GITHUB_TOKEN: '', SKILL_ATLAS_CLAUDE: join(clusterDirectory, 'claude') },
+});
+const clusterAddress = await new Promise<string>((resolve, reject) => {
+  let out = '';
+  clusterCli.stdout.on('data', (chunk) => {
+    out += chunk;
+    const match = /^Skill Atlas: (http:\/\/127\.0\.0\.1:\d+\/)$/m.exec(out);
+    if (match) resolve(match[1]);
+  });
+  clusterCli.once('exit', (code) => reject(new Error(`serve exited with ${code}`)));
+});
+test.after(() => clusterCli.kill());
+
 async function get(path: string, base = address) {
   const response = await fetch(new URL(path, base));
   return { status: response.status, type: response.headers.get('content-type') ?? '', body: await response.text() };
@@ -78,8 +103,9 @@ function unchunk(body: string): string {
   }
 }
 
-async function scanned(repo: string, base = address): Promise<{ status: number; answer: Answer }> {
-  const { status, body } = await get(`/api/scan?repo=${encodeURIComponent(repo)}`, base);
+async function scanned(repo: string, base = address, extra = ''): Promise<{ status: number; answer: Answer }> {
+  const { status, body } = await get(`/api/scan?repo=${encodeURIComponent(repo)}${extra}`, base);
+
   return { status, answer: JSON.parse(body) };
 }
 
@@ -266,6 +292,63 @@ test('the API answers each skill its group, and the groups in the order the page
       ['review', 'review'],
     ],
   );
+});
+
+// `cluster=1`: the groups come from `claude -p` instead of from the words the skills share.
+test('cluster=1: the API answers the model’s groups', async () => {
+  const { status, answer } = await scanned(FIXTURE, clusterAddress, '&cluster=1');
+  assert.equal(status, 200);
+  // The stand-in's own groups, the skills under them in the scan's order, the rest wordless and last.
+  assert.deepEqual(answer.groups, [
+    { word: 'reviewing', skills: 3 },
+    { word: 'shipping', skills: 2 },
+    { word: '', skills: 1 },
+  ]);
+  assert.deepEqual(
+    answer.skills.map((skill) => [skill.name, skill.group]),
+    [
+      ['code-style', 'reviewing'],
+      ['commits', ''],
+      ['deploy', 'shipping'],
+      ['release-checklist', 'shipping'],
+      ['review', 'reviewing'],
+      ['review', 'reviewing'],
+    ],
+  );
+  // The fixture's own warnings are there, as for any scan; the clustering added none of its own.
+  assert.doesNotMatch(answer.warnings.join('\n'), /grouped by shared words instead/);
+});
+
+test('without cluster=1 the same server groups by the words the skills share', async () => {
+  const { answer } = await scanned(FIXTURE, clusterAddress);
+  assert.deepEqual(answer.groups, [
+    { word: 'review', skills: 2 },
+    { word: '', skills: 4 },
+  ]);
+});
+
+test('cluster=1 in the page’s address: every scan it makes is clustered', async () => {
+  const page = await openPage(clusterAddress, '?repo=' + encodeURIComponent(FIXTURE) + '&cluster=1');
+  await page.scan(FIXTURE);
+  assert.deepEqual(page.groups(), ['reviewing · 3 skills', 'shipping · 2 skills', 'other · 1 skill']);
+  // The page without it, on the same server, is the shared words' again.
+  const plain = await openPage(clusterAddress);
+  await plain.scan(FIXTURE);
+  assert.deepEqual(plain.groups(), ['review · 2 skills', 'other · 4 skills']);
+});
+
+test('a model that cannot be asked → the shared words’ groups, and the warning in the page', async () => {
+  const { answer } = await scanned(FIXTURE, address, '&cluster=1');
+  // This server has no stand-in: `claude` is not on its PATH, which is a warning, not an error.
+  assert.deepEqual(answer.groups, [
+    { word: 'review', skills: 2 },
+    { word: '', skills: 4 },
+  ]);
+  assert.match(answer.warnings.join('\n'), /claude: not found on the PATH; grouped by shared words instead/);
+  const page = await openPage(address, '?cluster=1');
+  await page.scan(FIXTURE);
+  assert.match(page.element('results').text, /grouped by shared words instead/);
+  assert.deepEqual(page.groups(), ['review · 2 skills', 'other · 4 skills']);
 });
 
 test('a local directory: every project skill sorted as for scan, with its link, copies and SKILL.md', async () => {
