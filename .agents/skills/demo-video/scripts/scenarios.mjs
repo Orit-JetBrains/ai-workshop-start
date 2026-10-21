@@ -136,6 +136,37 @@ export const scenarios = {
     },
   },
 
+  /** The back button: each scan is a step of the browser's history, so back is the list before it. */
+  'back-button': {
+    description: 'The back button: back from a repository is the organization’s list again',
+    defaults,
+    async run(context, options) {
+      const { caption, wait, choose, page } = context;
+      await caption('skill-atlas serve — the back button walks back through the scans');
+      await wait(1500);
+
+      await organizationScan(context, options);
+
+      await caption('Choosing a repository scans it — a step of its own in the browser’s history');
+      await choose('repository', options.repository);
+      await repositorySkills(context, options);
+
+      await caption('Now the browser’s back button');
+      await wait(1500);
+      await page.goBack();
+      await page.waitForSelector('#results li.repository', { timeout: 120_000 });
+      await caption(`Back: ${(await page.textContent('#list h1'))?.trim()} — the list the scan came from`);
+      await wait(3200);
+
+      await caption('Back again: the empty page the first scan was run from');
+      await wait(1200);
+      await page.goBack();
+      await page.waitForFunction(() => document.querySelector('#results')?.children.length === 0, { timeout: 30_000 });
+      await caption('The page it started from — the top bar, and nothing else');
+      await wait(2600);
+    },
+  },
+
   /** The error path: an unreachable repository is answered in the page, not swallowed. */
   'unreachable-repository': {
     description: 'An unreachable repository: its message, in the page',

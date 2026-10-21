@@ -35,6 +35,7 @@ recorded organization-and-filter → docs/demo/organization-and-filter.mp4
 | `organization-and-filter` | Both features in one take: the organization scan, the filter over the repositories' names, a repository chosen from the list, the filter over its skills, a SKILL.md. This is the take checked in as `docs/demo/skill-atlas-demo.mp4` |
 | `organization-scan` | The organization scan alone — the repositories with skills and their counts |
 | `repository-and-filter` | One repository typed in directly: its skills, the filter over them, a SKILL.md |
+| `back-button` | The browser's back button: a repository chosen from an organization, then back to that list, then back to the empty page |
 | `unreachable-repository` | The error path: the message in the page, not a blank list |
 
 Options:

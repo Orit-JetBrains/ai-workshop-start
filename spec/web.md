@@ -27,6 +27,10 @@ Prints the address; it only listens on **127.0.0.1**. `GITHUB_TOKEN` works as fo
   it is there — a repository chosen from an organization included; its warnings are the page's warnings
 - The first skill of the **list** is chosen after a scan — the first of the first group, which a group
   is only as `other` when nothing groups; `?repo=<input>` in the address scans it on load
+- Each scan is a **step of its own** in the browser's history: **back** returns to the scan before it —
+  an organization's list, for a repository chosen from it — and back past the first scan is the page
+  before it, with no list and an empty field. A scan of the address already shown is **no** new step:
+  the one `?repo=` runs on load, or the same input scanned twice
 - Unreachable repository, or any other error → its message, in the page
 ## API
 `GET /api/scan?repo=<input>[&cluster=1]` → JSON: `repository`, `skills` (each with its `link`, its `updatedAt`, an **ISO-8601**

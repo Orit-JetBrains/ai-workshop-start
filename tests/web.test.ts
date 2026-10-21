@@ -12,7 +12,7 @@ import { openGitHub, openOrganization } from '../src/core/github.ts';
 import { replay, type Recording } from '../src/core/replay.ts';
 import { openDirectory } from '../src/local.ts';
 import { serve } from '../src/web.ts';
-import { CLI, EXAMPLE_COMMIT, FIXTURE, SKILL_DAY, trees } from './helpers.ts';
+import { CLI, EXAMPLE_COMMIT, FIXTURE, SKILL_DAY, temporary, trees } from './helpers.ts';
 import { openPage } from './page.ts';
 
 type Answer = {
@@ -508,6 +508,68 @@ test('choosing a repository of the organization scans it: its URL in the field, 
     page.element('results').querySelectorAll('li.repository')[0].dispatch('keydown', { key: 'Enter' });
     await until(() => page.element('results').querySelector('h1')?.text === 'JetBrains/MPS · 1 skill');
   });
+});
+
+// The back button. The page's own history, driven as a browser drives it: each scan is a step, and
+// a step back is the scan of the entry it returns to, run again.
+test('each scan is a step of its own: back returns to the scan before it', async (t) => {
+  const other = temporary(t, { '.claude/skills/a/SKILL.md': '---\nname: a\ndescription: Skill a.\n---\n' });
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  await page.scan(other);
+  assert.deepEqual(page.history(), ['', '?repo=' + encodeURIComponent(FIXTURE), '?repo=' + encodeURIComponent(other)]);
+  assert.deepEqual(page.visible(), ['a']);
+  // Back: the fixture's scan again, field, list and chosen skill with it.
+  assert.equal(page.back(), true);
+  await until(() => page.element('results').querySelector('h1')?.text === 'fixture · 6 skills');
+  assert.equal(page.element('repo').value, FIXTURE);
+  assert.deepEqual(page.visible(), ALL);
+  assert.equal(page.chosen(), 'review');
+  assert.equal(page.count(), '6 of 6');
+});
+
+test("back from a repository chosen in an organization is the organization's list again", async () => {
+  await withOrganization(async (url) => {
+    const page = await openPage(url);
+    await page.scan('https://github.com/JetBrains');
+    page.element('results').querySelectorAll('li.repository')[1].dispatch('click');
+    await until(() => page.element('results').querySelector('h1')?.text === 'JetBrains/kotlin · 2 skills');
+    assert.deepEqual(page.history(), ['', '?repo=' + encodeURIComponent('https://github.com/JetBrains'), '?repo=' + encodeURIComponent('https://github.com/JetBrains/kotlin')]);
+    assert.equal(page.back(), true);
+    await until(() => page.element('results').querySelector('h1')?.text === 'JetBrains · 4 repositories, 2 with skills');
+    assert.deepEqual(
+      page.element('results').querySelectorAll('li.repository').map((item) => item.querySelector('div.name')?.text),
+      ['MPS', 'kotlin'],
+    );
+    assert.equal(page.element('repo').value, 'https://github.com/JetBrains');
+    assert.equal(page.count(), '2 of 2');
+  });
+});
+
+test('back past the first scan is the page before it: no list, an empty field, nothing to count', async () => {
+  const page = await openPage(address);
+  await page.scan(FIXTURE);
+  assert.equal(page.back(), true);
+  await until(() => page.element('results').children.length === 0);
+  assert.equal(page.element('repo').value, '');
+  assert.equal(page.element('file').children.length, 0);
+  assert.equal(page.query(), '');
+  assert.equal(page.count(), '');
+  assert.equal(page.filterShown(), true);
+  assert.equal(page.element('filter').placeholder, 'Filter skills');
+  // That entry is the page as it was served: there is nothing of it left to step back into.
+  assert.equal(page.back(), false);
+});
+
+test('a scan of the address already shown is no new step: the one ?repo= runs on load, and the same input twice', async () => {
+  const query = '?repo=' + encodeURIComponent(FIXTURE);
+  const page = await openPage(address, query);
+  await until(() => page.element('results').querySelector('h1')?.text === 'fixture · 6 skills');
+  assert.deepEqual(page.history(), [query]);
+  // Scanned again, by hand: the same address, so the same entry, and still nothing to go back to.
+  await page.scan(FIXTURE);
+  assert.deepEqual(page.history(), [query]);
+  assert.equal(page.back(), false);
 });
 
 test('any other path → 404', async () => {
