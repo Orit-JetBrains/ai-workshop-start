@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and merge it yourself once its checks are green, so an unreviewed PR is never mistaken for a clean one. Only an explicit do-not-merge marker holds a clean PR back, never prose in its body — and a run that stops without merging tells a person in Slack, because nobody is watching the PR page.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and merge it yourself once its checks are green, so an unreviewed PR is never mistaken for a clean one. A PR that conflicts with its base gets rebased, tested and pushed in the same run — a conflict is work, not a finding. Only an explicit do-not-merge marker holds a clean PR back, never prose in its body — and a run that stops without merging tells a person in Slack, because nobody is watching the PR page.
 ---
 
 # Code review
@@ -83,6 +83,79 @@ is explicitly dismissed with a reply explaining why it is not a defect. Posting
 the comment is half the job; a run that left comments and pushed nothing has not
 applied anything.
 
+## A PR that conflicts with its base: resolve it, don't report it
+
+A pull request whose branch has drifted from its base cannot be merged, however
+clean the review. That is **work the PR needs, not a finding** — nobody wants a
+comment saying *"this conflicts"* — so do it in the same run, exactly as the
+suggested fixes are done.
+
+Check the state before reviewing and again before merging:
+
+```bash
+gh pr view <pr> --json mergeable,mergeStateStatus -q '.mergeable + " " + .mergeStateStatus'
+```
+
+- `CONFLICTING` / `DIRTY` — resolve it, below.
+- `UNKNOWN` — GitHub is still computing the merge; wait a few seconds and ask
+  again. Never read it as clean.
+- `MERGEABLE` / `CLEAN`, `UNSTABLE` (checks still running) — nothing to resolve.
+
+To resolve:
+
+```bash
+gh pr checkout <pr>
+git fetch origin
+before=$(git rev-parse HEAD)          # for --force-with-lease, below
+git rebase origin/<main branch>       # the PR's base, not always `main`
+```
+
+Rebase rather than merge: this repository squash-merges, so a merge commit in
+the branch only muddles the review's diff.
+
+Then, hunk by hunk:
+
+1. **Keep both intents.** Almost every conflict here is two commits editing
+   neighbouring lines of one file — a helper added above a function whose
+   signature the PR changed, a new test beside a changed one. Both sides are
+   wanted; a resolution that drops either silently reverts someone's merged work.
+2. **Stop at a real disagreement.** When the two changes contradict each other —
+   both rewrite the same rule in `spec/`, both change one function's contract,
+   both answer the same request differently — that is a semantic conflict, and
+   picking a side is a behavior decision, not a merge. Abort
+   (`git rebase --abort`), leave the PR alone, and
+   [tell a person](#stopping-needs-a-person) which two changes disagree.
+3. **Never hand-merge a binary.** Screenshots, recorded videos and other
+   generated files have no hunks to reconcile: take the base's copy and
+   regenerate the PR's the way the project documents (for this repository, the
+   `accept screenshots` label re-renders the demo images on CI). Choosing a side
+   byte-wise produces a file that matches neither change.
+4. **Run the whole suite afterwards.** A rebase that compiles is not a rebase
+   that works: the conflict is only resolved once `npm test` — the project's own
+   command from `AGENTS.md` — passes on the rebased branch. Fix what the rebase
+   broke before pushing; a red branch is not a resolved conflict.
+
+Push with a lease, never a bare force, so a commit the author or an earlier
+review pushed in the meantime is not silently dropped:
+
+```bash
+git push --force-with-lease="$(git branch --show-current):$before" origin HEAD
+```
+
+A rebase **rewrites every commit hash on the branch**. So:
+
+- a review thread that says *"fixed in `<sha>`"* now names a commit that is not
+  on the branch — when resolving such a thread, reply with the **new** hash and
+  say the branch was rebased, or the trail leads nowhere;
+- the checks that were green ran on the old head: wait for the new ones
+  (`gh pr checks <pr> --watch`) before merging. A green tick on a replaced commit
+  proves nothing;
+- re-read `mergeable` afterwards and confirm it is `MERGEABLE`.
+
+Then report the resolution plainly in the review: which commits the branch was
+rebased onto, which files conflicted, and that the suite passes — a reviewer
+after you should not have to work out why the hashes moved.
+
 ## Merging
 
 A clean review ends with the pull request **merged**. Do the merge yourself in
@@ -129,6 +202,9 @@ If the review finds nothing to fix:
   green build is cheap to confirm and there is no reason to skip it.
 - If a check fails, do not merge: report which one, with its log, and stop.
 - If any thread is still open, do not merge: list what is unresolved and stop.
+- If the PR conflicts with its base, do not merge and do not stop either:
+  [resolve the conflict](#a-pr-that-conflicts-with-its-base-resolve-it-dont-report-it),
+  push, wait for the new checks, and then merge in the same run.
 - Otherwise (not a PR) just say the review is clean in one line and stop.
 
 Then confirm the PR is merged and report it plainly — a run that reviewed a
@@ -182,10 +258,12 @@ PR and asks for it to be cleared.
 
 ## Stopping needs a person
 
-This skill stops without merging in four places: a **failing check**, an
-**unresolved thread** it would not fix, a **do-not-merge marker**, and a target
-that is **not a PR**. In the first three, a human has to act next — and nobody
-is watching the PR page. The run that opened the PR is over
+This skill stops without merging in five places: a **failing check**, an
+**unresolved thread** it would not fix, a **do-not-merge marker**, a **conflict
+it must not resolve itself** (two changes that disagree, per
+[the section above](#a-pr-that-conflicts-with-its-base-resolve-it-dont-report-it)),
+and a target that is **not a PR**. In the first four, a human has to act next —
+and nobody is watching the PR page. The run that opened the PR is over
 ([issue-to-pr](../issue-to-pr/SKILL.md) §5 forbids it from polling), and this run
 ends here, so a comment on the PR is addressed to no one: that is how a green,
 approved pull request sits open for hours.
@@ -197,10 +275,10 @@ names: the private Slack channel **`#workshop-test-channel`** in the
 the run's Slack tool, as one message that
 
 - links the PR;
-- says which of the four states it stopped in, in one line;
+- says which of the five states it stopped in, in one line;
 - says the **one action** that unblocks it — *"do a real `claude -p` run, then
   merge"*, *"decide whether thread #3 is a defect"*, *"clear the `Do-not-merge:`
-  line, it is satisfied"*;
+  line, it is satisfied"*, *"decide which of these two changes wins"*;
 - links the check's log, or the thread, when that is what stopped it.
 
 **No Slack tool in this run?** Do not quietly tell no one. Comment on the PR
