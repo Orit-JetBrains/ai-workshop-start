@@ -4,6 +4,7 @@
 import { createServer, type Server } from 'node:http';
 import { AtlasError } from './core/errors.ts';
 import { parseGitHubOrganization } from './core/github.ts';
+import { clusterSkills, type ClusterOptions } from './core/cluster.ts';
 import { groupSkills, groupWords } from './core/group.ts';
 import { skillLink } from './core/model.ts';
 import { scan, scanOrganization, type OrganizationSource, type Source } from './core/scan.ts';
@@ -16,6 +17,7 @@ export async function serve(
   port: number,
   open: (input: string) => Promise<Source>,
   openOrganization?: (input: string) => Promise<OrganizationSource>,
+  cluster?: ClusterOptions,
 ): Promise<{ url: string; server: Server }> {
   const server = createServer(async (request, response) => {
     const send = (status: number, type: string, body: string) => {
@@ -34,10 +36,12 @@ export async function serve(
     if (url.pathname !== '/api/scan') return send(404, 'text/plain', 'Not found');
     try {
       const input = (url.searchParams.get('repo') ?? '').trim();
+      // `cluster=1`: the groups come from `claude -p` instead of from the words the skills share.
+      const clustered = ['1', 'true', 'yes'].includes((url.searchParams.get('cluster') ?? '').toLowerCase());
       const answer =
         openOrganization && parseGitHubOrganization(input)
           ? await scanOrganization(await openOrganization(input))
-          : await scanWithText(input, open);
+          : await scanWithText(input, open, clustered ? (cluster ?? {}) : undefined);
       send(200, 'application/json', JSON.stringify(answer));
     } catch (error) {
       const message = error instanceof AtlasError ? error.message : `Unexpected error: ${error instanceof Error ? error.message : String(error)}`;
@@ -64,8 +68,11 @@ export async function serve(
   return { url: `http://127.0.0.1:${typeof address === 'object' && address ? address.port : port}/`, server };
 }
 
-/** The scan, each skill with its link and the SKILL.md it was read from. */
-async function scanWithText(input: string, open: (input: string) => Promise<Source>) {
+/**
+ * The scan, each skill with its link and the SKILL.md it was read from. With `cluster`, the groups
+ * are the model's, as `--cluster` asks for them; without it, the words the skills share.
+ */
+async function scanWithText(input: string, open: (input: string) => Promise<Source>, cluster?: ClusterOptions) {
   if (!input.trim()) throw new AtlasError('Enter a GitHub URL or a directory');
   const source = await open(input.trim());
   // The bytes the scan reads, kept for this answer only. Decoding is deferred to the few skill
@@ -80,9 +87,12 @@ async function scanWithText(input: string, open: (input: string) => Promise<Sour
     },
   });
   const decoder = new TextDecoder();
-  // The groups the skills fall into, by the words they share: their order is the page's, and each
-  // skill carries the word it is under, so the list can be drawn from the skills alone.
-  const groups = groupSkills(result.skills, result.repository.name);
+  // The groups the skills fall into: their order is the page's, and each skill carries the word it
+  // is under, so the list can be drawn from the skills alone.
+  const grouped = cluster
+    ? await clusterSkills(result.skills, result.repository.name, cluster)
+    : { groups: groupSkills(result.skills, result.repository.name), warnings: [] };
+  const groups = grouped.groups;
   const words = groupWords(groups);
   return {
     repository: result.repository,
@@ -96,7 +106,7 @@ async function scanWithText(input: string, open: (input: string) => Promise<Sour
       };
     }),
     groups: groups.map((group) => ({ word: group.word, skills: group.skills.length })),
-    warnings: result.warnings,
+    warnings: [...result.warnings, ...grouped.warnings],
   };
 }
 
@@ -220,12 +230,17 @@ function applyFilter() {
 
 filter.addEventListener('input', applyFilter);
 
+// cluster=1 in the address asks the server for the model's groups instead of the shared words'.
+// It stays in the address across scans, so a repository chosen from an organization is clustered too.
+const clustered = new URLSearchParams(location.search).get('cluster');
+const clusters = clustered ? '&cluster=' + encodeURIComponent(clustered) : '';
+
 let latestScan = 0;
 async function scan(input) {
   // Scans can overlap; only the most recent one may touch the page, so a slow earlier
   // response cannot overwrite a newer result that no longer matches the input or the URL.
   const token = ++latestScan;
-  history.replaceState(null, '', '?repo=' + encodeURIComponent(input));
+  history.replaceState(null, '', '?repo=' + encodeURIComponent(input) + clusters);
   results.replaceChildren(element('p', '', 'Scanning…'));
   file.replaceChildren();
   // A scan starts from the whole list again: the previous query says nothing about these skills.
@@ -235,7 +250,7 @@ async function scan(input) {
   applyFilter();
   let answer;
   try {
-    const response = await fetch('/api/scan?repo=' + encodeURIComponent(input));
+    const response = await fetch('/api/scan?repo=' + encodeURIComponent(input) + clusters);
     answer = await response.json();
   } catch (error) {
     answer = { error: String(error) };

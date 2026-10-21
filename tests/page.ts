@@ -100,9 +100,10 @@ export type Page = {
 
 /**
  * Serves `/` from `address`, runs the script it contains, and returns the page it builds. `fetch`
- * inside the page is the real one, so `/api/scan` is answered by that same running server.
+ * inside the page is the real one, so `/api/scan` is answered by that same running server. `search`
+ * is the query of the address the page was opened at, `?repo=…&cluster=1`.
  */
-export async function openPage(address: string): Promise<Page> {
+export async function openPage(address: string, search = ''): Promise<Page> {
   const html = await (await fetch(address)).text();
   const script = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1];
   if (!script) throw new Error('The page has no script');
@@ -129,7 +130,8 @@ export async function openPage(address: string): Promise<Page> {
       createElement: (tag: string) => new Element(tag),
     },
     history: { replaceState() {} },
-    location: { search: '' },
+    // What the address line says, which is where `?repo=` and `?cluster=` come from.
+    location: { search },
     // The page talks to the server it was served from, by absolute address.
     fetch: (path: string) => fetch(new URL(path, address)),
     URLSearchParams,

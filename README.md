@@ -21,6 +21,21 @@ skill joins it when the word is anywhere in its name or its description — so `
 `issue-triage` and `pr-flow`, which only mentions an issue, are read together. What shares no word with
 anything is `other`, last. See [spec/analysis.md](spec/analysis.md#groups).
 
+`./skill-atlas scan <input> --cluster` asks a model for the groups instead: `claude -p`, the Claude Code
+CLI in print mode, with the small model — `claude-haiku-4-5` — reading the skills' names and
+descriptions. It needs a logged-in `claude` on the PATH (`SKILL_ATLAS_CLAUDE` names one elsewhere); a
+model that cannot be asked, or that does not answer with the groups it was asked for, costs a warning,
+and the words the skills share group them as usual. The web view does the same with `&cluster=1` in its
+address. See [spec/analysis.md](spec/analysis.md#clustering-with-a-model).
+
+```console
+$ ./skill-atlas scan https://github.com/modelcontextprotocol/inspector --cluster
+modelcontextprotocol/inspector · 11 skills
+
+issues · 3 skills
+…
+```
+
 `./skill-atlas scan github.com/<organization>` — a GitHub URL with no repository part — scans a whole
 organization or user account instead: how many skills each of its repositories has. It needs `GITHUB_TOKEN`.
 
