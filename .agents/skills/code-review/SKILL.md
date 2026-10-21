@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and merge it yourself once its checks are green, so an unreviewed PR is never mistaken for a clean one. A PR that conflicts with its base gets rebased, tested and pushed in the same run — a conflict is work, not a finding. Only an explicit do-not-merge marker holds a clean PR back, never prose in its body — and a run that stops without merging tells a person in Slack, because nobody is watching the PR page.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and merge it yourself once its checks are green, so an unreviewed PR is never mistaken for a clean one. A PR that conflicts with its base gets rebased, tested and pushed in the same run — a conflict is work, not a finding. The run that finds work does it: a review is only started by a PR being created or pushed to, so nothing left outstanding gets a second pass. Only an explicit do-not-merge marker holds a clean PR back, never prose in its body — and a run that stops without merging tells a person in Slack, because nobody is watching the PR page.
 ---
 
 # Code review
@@ -81,7 +81,9 @@ carries the bug the comment describes. So finish each finding on the PR itself:
 A finding is **addressed** only once its fix is pushed to the PR branch — or it
 is explicitly dismissed with a reply explaining why it is not a defect. Posting
 the comment is half the job; a run that left comments and pushed nothing has not
-applied anything.
+applied anything — and nothing will start the run that would.
+[Leave no work for a run that nobody will start](#leave-no-work-for-a-run-that-nobody-will-start)
+is why that matters: this run is the only one the findings will get.
 
 ## A PR that conflicts with its base: resolve it, don't report it
 
@@ -255,6 +257,46 @@ A marker, finally, is only as good as its end: when the thing it names is done,
 review merges. A `Do-not-merge:` that outlived its reason is the same stall by
 another name, so a review that finds one it believes is satisfied says so on the
 PR and asks for it to be cleared.
+
+## Leave no work for a run that nobody will start
+
+A review runs when a pull request is **created or pushed to**. Nothing starts one
+because a PR has findings waiting, or because its branch went stale. So a run
+that ends with work outstanding is not handing that work to a next pass — there
+is no next pass. It is parking the PR until a human happens to look, and the
+work it left is usually the very push that would have triggered the run to do it.
+
+Hence the rule this whole skill turns on: **the run that finds the work does the
+work.** Before ending, a run must leave the PR in one of exactly three states,
+and never in a fourth:
+
+1. **Merged** — the review was clean, or its findings are fixed, pushed and their
+   threads resolved, and the checks are green on the pushed head.
+2. **Blocked, with a person told** — one of the five states in
+   [Stopping needs a person](#stopping-needs-a-person), with the message sent.
+3. **Not a pull request** — a working-tree review, which ends in a line of prose.
+
+A PR left approved-but-unmerged, carrying unapplied findings of this run's own,
+or conflicting with its base, is in none of those states. It is open with no
+owner, and it stays open: #38 sat green, approved and thread-free for 95 minutes;
+#48 sat on five findings nobody had been asked to apply; #46 sat conflicting for
+an hour. Each needed a push to wake a review, and the push was the work.
+
+So, concretely, before the run ends:
+
+- Did this run post findings? Then its fixes are **pushed to the PR branch**, not
+  left in the working tree — a finding whose fix is a local edit is a finding the
+  PR does not have. The one fix too risky to apply mechanically is replied to on
+  its thread saying why, which makes it state 2, not state 1.
+- Did the base move under the branch? Then the conflict is
+  [resolved and pushed](#a-pr-that-conflicts-with-its-base-resolve-it-dont-report-it).
+- Does anything remain that only a person can decide? Then
+  [say so to that person](#stopping-needs-a-person) before ending.
+
+Never write *"a follow-up run will pick this up"*, never schedule a wake-up to
+come back to the PR, and never end a run on *"waiting for the next review"*. A
+finished Air session is not continued, and a review that is not running cannot
+be the thing a PR is waiting for.
 
 ## Stopping needs a person
 
