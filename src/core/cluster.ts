@@ -154,19 +154,28 @@ function answered(stdout: string): Answer | { error: string } {
  */
 function assign(skills: Skill[], groups: Answer['groups']): SkillGroup[] {
   const taken = new Set<number>();
-  const found: SkillGroup[] = [];
+  // A word maps to one group: the model may label two groups the same, but a scan's groups are read
+  // by their word — on the page a skill carries only the word it is under — so two groups with one
+  // word would draw their skills twice. Same-word groups are merged, keeping the first's place.
+  const byWord = new Map<string, number[]>();
+  const order: string[] = [];
   for (const group of groups.slice(0, MOST_GROUPS)) {
     const word = group.label.trim().toLowerCase();
     // The label is a word of the same shape a shared word has: a group is read, not parsed.
     if (!/^[a-z0-9][a-z0-9-]*$/.test(word) || word.length > LONGEST_LABEL) continue;
-    const members = [...new Set(group.skills)]
-      .filter((number) => Number.isInteger(number) && number >= 1 && number <= skills.length && !taken.has(number))
-      // In the scan's order, by name, whatever order the model put them in.
-      .sort((a, b) => a - b);
+    const members = [...new Set(group.skills)].filter(
+      (number) => Number.isInteger(number) && number >= 1 && number <= skills.length && !taken.has(number),
+    );
     if (members.length < 2) continue;
     for (const number of members) taken.add(number);
-    found.push({ word, skills: members.map((number) => skills[number - 1]) });
+    if (!byWord.has(word)) order.push(word);
+    byWord.set(word, [...(byWord.get(word) ?? []), ...members]);
   }
+  const found: SkillGroup[] = order.map((word) => ({
+    word,
+    // In the scan's order, by name, whatever order the model put them in — or merged them from.
+    skills: byWord.get(word)!.sort((a, b) => a - b).map((number) => skills[number - 1]),
+  }));
   const rest = skills.filter((_, index) => !taken.has(index + 1));
   if (rest.length > 0) found.push({ word: '', skills: rest });
   return found;
