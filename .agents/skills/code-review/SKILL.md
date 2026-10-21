@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and merge it yourself once its checks are green, so an unreviewed PR is never mistaken for a clean one.
+description: Review the current diff for correctness bugs. Keep it short, leave inline comments (where, how to reproduce, suggested fix), then apply each suggested fix to the working tree. Never merge a PR while any review comment is unresolved; on a clean review, mark it with a 🟢 approval and merge it yourself once its checks are green, so an unreviewed PR is never mistaken for a clean one. Only an explicit do-not-merge marker holds a clean PR back, never prose in its body — and a run that stops without merging tells a person in Slack, because nobody is watching the PR page.
 ---
 
 # Code review
@@ -141,6 +141,73 @@ simply not been reviewed yet. Only post the 🟢 on a genuinely empty review —
 never when a finding was skipped as too risky to fix, and never while comments
 remain unaddressed.
 
-One exception: a PR whose body asks not to be merged — a review-only replay of
-already-merged code, for instance — gets the 🟢 and no merge. Say why you left
-it open.
+### The one exception: an explicit do-not-merge marker
+
+A PR can ask not to be merged — a review-only replay of already-merged code, for
+instance. It gets the 🟢 and no merge, with a line saying why it was left open.
+
+That opt-out is **a marker, never prose**. Honor exactly two:
+
+- a line in the PR body starting `Do-not-merge:`, followed by what has to happen
+  first;
+- a `do not merge` label on the PR.
+
+```bash
+# Both, in one go: a marker line in the body, or the label.
+gh pr view <pr> --json body,labels \
+  --jq '[(.body | split("\n")[] | select(startswith("Do-not-merge:"))), (.labels[].name | select(. == "do not merge"))]'
+```
+
+**Everything else in the body is prose, and prose is not a gate.** An author
+writing *"worth one real run before merging"*, *"needs a look from someone who
+knows this code"*, or *"what X does in production is untested"* is telling a
+reviewer what to weigh — which is what a PR body is for. Reading that as an
+instruction not to merge turns honesty in a description into an indefinite
+block: nothing in the sentence says when it stops applying, so it never does,
+and a green, approved, thread-free PR sits open for no recorded reason. A
+reviewer who merges a clean PR over such a sentence is not overriding the
+author; a reviewer who stalls on one has invented a gate the author never set.
+
+If a sentence like that worries you, the answer is in the review, not the stall:
+say so in the 🟢 — *"merged; the live path is covered by tests against a
+stand-in only"* — and merge. If it is a real defect, it is a finding, with a
+comment and a fix. If you are genuinely unsure whether the author meant a gate,
+[ask them](#stopping-needs-a-person) rather than deciding by silence.
+
+A marker, finally, is only as good as its end: when the thing it names is done,
+**the marker goes** — the author removes the line or the label, and the next
+review merges. A `Do-not-merge:` that outlived its reason is the same stall by
+another name, so a review that finds one it believes is satisfied says so on the
+PR and asks for it to be cleared.
+
+## Stopping needs a person
+
+This skill stops without merging in four places: a **failing check**, an
+**unresolved thread** it would not fix, a **do-not-merge marker**, and a target
+that is **not a PR**. In the first three, a human has to act next — and nobody
+is watching the PR page. The run that opened the PR is over
+([issue-to-pr](../issue-to-pr/SKILL.md) §5 forbids it from polling), and this run
+ends here, so a comment on the PR is addressed to no one: that is how a green,
+approved pull request sits open for hours.
+
+So before ending such a run, **tell a person**, in the place
+[issue-to-pr](../issue-to-pr/SKILL.md#an-open-decision-ask-wait-go-on) already
+names: the private Slack channel **`#workshop-test-channel`** in the
+[aiworkshopatjetbrains](https://aiworkshopatjetbrains.slack.com) workspace, with
+the run's Slack tool, as one message that
+
+- links the PR;
+- says which of the four states it stopped in, in one line;
+- says the **one action** that unblocks it — *"do a real `claude -p` run, then
+  merge"*, *"decide whether thread #3 is a defect"*, *"clear the `Do-not-merge:`
+  line, it is satisfied"*;
+- links the check's log, or the thread, when that is what stopped it.
+
+**No Slack tool in this run?** Do not quietly tell no one. Comment on the PR
+(`gh pr comment <pr>`), mention its author, and say in the comment that Slack was
+not reachable from the run.
+
+Then end the run. **Do not wait for the answer**: unlike the one wait
+`issue-to-pr` makes before writing code, there is nothing here to go on with — the
+review is done and reported. A finished Air session is not continued, so never
+promise to come back and merge.

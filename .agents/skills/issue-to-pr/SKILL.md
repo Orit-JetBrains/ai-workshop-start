@@ -126,6 +126,26 @@ pushed — but on a stop, open no PR until it is answered.
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
+### Say what is untested — but don't gate the PR by accident
+
+Write what the change does not cover: a path only tests with a stand-in reach, a
+machine this run could not be, a number that is an illustration. That belongs in
+the body, and a reviewer needs it.
+
+Phrase it as **what is true**, not as an instruction about merging. *"The live
+`claude -p` path is covered against a stand-in only; what a real model answers is
+not"* says the same thing as *"worth one real run before merging"* and costs
+nothing; the second reads as an order to the
+[code-review](../code-review/SKILL.md#the-one-exception-an-explicit-do-not-merge-marker)
+automation, which can leave a green, approved PR open indefinitely on the
+strength of one sentence.
+
+When the change genuinely must not merge yet, say so **deliberately**: a line in
+the body starting `Do-not-merge:` and naming what has to happen first, or the
+`do not merge` label. That is the only form the review honors, it is visible as a
+decision rather than buried in prose, and it is yours to remove when the thing it
+names is done.
+
 ## 4. Get CI green
 
 The definition of done requires a **green CI build**, so the PR is not ready
