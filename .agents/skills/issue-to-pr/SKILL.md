@@ -53,12 +53,24 @@ see differently. Ask before writing code for that part.
    a bot; a reply that asks you something back is answered in the thread, and
    the wait goes on.
 
-   On the issue fallback, the same wait, on comments after yours:
+   On the issue fallback, the same wait. Right after you post the comment,
+   capture its server-side timestamp — never a local `date`, whose clock skew
+   can match your own comment and return an answer that is not there — then poll
+   for a *later* reply from the issue author (not a bot, a cross-reference, or
+   anyone else) and read its body:
 
    ```bash
-   gh issue view <number> --json comments \
-     -q '[.comments[] | select(.createdAt > "<your comment time>")] | length'
+   # immediately after `gh issue comment <number> ...`
+   asked_at=$(gh issue view <number> --json comments -q '.comments[-1].createdAt')
+
+   # then on each poll:
+   gh issue view <number> --json comments --jq '.comments' \
+     | jq --arg author "<issue author>" --arg since "$asked_at" \
+          '[.[] | select(.author.login == $author and .createdAt > $since)]'
    ```
+
+   A non-empty array is the answer — read its `body`. An empty array means no
+   answer yet; keep waiting.
 
    This is the one wait this skill does: the work cannot go on without the
    answer. It is not the review wait that
