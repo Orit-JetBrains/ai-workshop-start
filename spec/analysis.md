@@ -92,6 +92,11 @@ the same way twice, where [the shared words](#groups) answer the same way on any
 - Fewer than **three** skills are not worth asking about: the shared words group them, with no warning
 - `SKILL_ATLAS_CLAUDE` names another CLI to run, `SKILL_ATLAS_CLAUDE_MODEL` another model to ask
 - An organization is **not** clustered: a count per repository has nothing to group
+- The tests answer for `claude -p` with a stand-in, so what a *model* answers is not among them: one real
+  run is recorded in [docs/cluster-run.md](../docs/cluster-run.md) instead, and re-recorded when the
+  prompt, the flags or the model change. It is what *not answering the same way twice* costs in practice —
+  on the same skills the division held across seven runs, while the word above a group and the order of
+  the groups moved — and it is why nothing pinned to a snapshot is clustered
 
 ## Comparing the two groupings
 The same skills, grouped both ways at once, read against each other — `--compare`
