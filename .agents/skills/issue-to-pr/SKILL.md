@@ -23,8 +23,67 @@ with `AGENTS.md`, `AGENTS.md` wins.
    criteria and any linked discussion.
 2. Read the spec in [spec/](../../../spec/) first. The implementation must match
    the spec; update the spec in the same change when the issue changes behavior.
-3. If the issue is ambiguous or underspecified, ask the user before writing code
-   rather than guessing.
+3. If the issue leaves a decision open, **ask, wait, then go on**: see
+   [An open decision](#an-open-decision-ask-wait-go-on). Never guess.
+
+### An open decision: ask, wait, go on
+
+An issue leaves a decision open when it lists open questions, offers options
+without picking one, or can reasonably be built two ways that a user would
+see differently. Ask before writing code for that part.
+
+1. **Ask in the team's channel**: the private Slack channel
+   **`#workshop-test-channel`** in the
+   [aiworkshopatjetbrains](https://aiworkshopatjetbrains.slack.com) workspace.
+   That is where the person who can answer looks, whoever started the run.
+   Post it with the run's Slack tool, as one message that links the issue.
+
+   Ask each open decision as one question: what is undecided, two to four
+   concrete options, what each costs, and which one you recommend and why.
+   Ask them all at once, in that one message, not one per round.
+
+   **No Slack tool in this run?** Do not ask anywhere else in its place
+   silently. Comment on the issue instead (`gh issue comment <number>`),
+   mention its author, and say in the comment that Slack was not reachable
+   from the run.
+2. **Wait for the answer, in the message's thread.** Read the replies to your
+   message, not the channel's newest messages: another conversation there is
+   not an answer. Check once a minute, for up to 30 minutes, in foreground
+   commands of under 10 minutes each. An answer is a reply from a person, not
+   a bot; a reply that asks you something back is answered in the thread, and
+   the wait goes on.
+
+   On the issue fallback, the same wait. Right after you post the comment,
+   capture its server-side timestamp — never a local `date`, whose clock skew
+   can match your own comment and return an answer that is not there — then poll
+   for a *later* reply from the issue author (not a bot, a cross-reference, or
+   anyone else) and read its body:
+
+   ```bash
+   # immediately after `gh issue comment <number> ...`
+   asked_at=$(gh issue view <number> --json comments -q '.comments[-1].createdAt')
+
+   # then on each poll:
+   gh issue view <number> --json comments --jq '.comments' \
+     | jq --arg author "<issue author>" --arg since "$asked_at" \
+          '[.[] | select(.author.login == $author and .createdAt > $since)]'
+   ```
+
+   A non-empty array is the answer — read its `body`. An empty array means no
+   answer yet; keep waiting.
+
+   This is the one wait this skill does: the work cannot go on without the
+   answer. It is not the review wait that
+   [the hand-off](#5-hand-the-pr-off--dont-poll-for-the-review) forbids.
+3. **Go on with the answer.** Implement what was chosen, and record each
+   decision and who made it in the PR body, under *Decisions*, linking the
+   Slack reply or the issue comment, or quoting it.
+
+If no answer comes within the wait, do not pick for them. Say in the thread,
+and on the issue, that the work is paused on the question; report that
+plainly, and stop.
+The parts the open decision does not touch may still be built and pushed, but
+open no PR until it is answered.
 
 ## 2. Implement with tests
 
