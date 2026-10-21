@@ -124,18 +124,21 @@ Then:
   merge commit is needed.
 
   ```bash
-  # --paginate: the timeline is 30 events a page, and the closing one is often not on the first.
-  gh api --paginate -H 'Accept: application/vnd.github+json' \
+  # --paginate --slurp: the timeline is 30 events a page, and the closing one is often not on the first.
+  # --slurp wraps every page into one array; without it, --jq runs per page and `last` is per page.
+  gh api --paginate --slurp -H 'Accept: application/vnd.github+json' \
     repos/<owner>/<repo>/issues/<issue>/timeline \
-    --jq '[.[] | select(.event=="closed" and .commit_id)] | last | .commit_id'
+    --jq '[.[][] | select(.event=="closed" and .commit_id)] | last | .commit_id'
   gh api repos/<owner>/<repo>/commits/<commit>/pulls -q '.[].number'
   ```
 
   Take the **last** `closed` event that carries a `commit_id`: an issue closed
-  by hand has none, and a reopen-then-close has more than one. Without
-  `--paginate`, an issue with a long timeline — label churn, cross-references, a
-  reopen cycle — hides its closing event on a later page, and `last` then picks
-  an earlier close or nothing at all.
+  by hand has none, and a reopen-then-close has more than one. `--paginate`
+  fetches every page, but with `--jq` and no `--slurp` `gh` applies the filter to
+  each page on its own, so `last` picks a per-page close (and a reopen cycle
+  whose closes fall on different pages prints more than one `commit_id`), not the
+  global one. `--slurp` wraps the pages into a single array and `.[][]` flattens
+  the events across them, so `last` is the real last close.
 
   The second call can come back **empty on a commit that exists**: a commit
   pushed straight to the default branch closed the issue without a pull request,
@@ -206,6 +209,7 @@ cursor=''
 while :; do
   page=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
     "https://slack.com/api/conversations.list?types=private_channel,public_channel&limit=200&cursor=$cursor")
+  echo "$page" | jq -e '.ok' >/dev/null || { echo "conversations.list: $(echo "$page" | jq -r '.error')" >&2; exit 1; }
   echo "$page" | jq -r '.channels[] | "\(.id)\t\(.name)"'
   cursor=$(echo "$page" | jq -r '.response_metadata.next_cursor // ""')
   [ -n "$cursor" ] || break
