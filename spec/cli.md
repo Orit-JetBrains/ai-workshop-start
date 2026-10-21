@@ -54,6 +54,9 @@ The two agree about 51 of the 55 pairs of skills.
 - The skills, their dates and their links are *not* printed: a comparison is of the **groups**
 - A **model that cannot be asked** has no column — `no groups: see the warning` — and no agreement line;
   the warning is the one `--cluster` gives, on *stderr*, and the exit code is still **0**
+- **Fewer than three skills** are not worth asking a model about (as for [`--cluster`](analysis.md#clustering-with-a-model)),
+  so the model has no column here either — the same `no groups: see the warning` and no agreement line —
+  with the warning `fewer than three skills to ask a model about; grouped by shared words instead`
 - Not for an organization: a clear message, exit code 1
 ## An organization
 `./skill-atlas scan github.com/<organization>`: a GitHub URL with **no repository part**, an

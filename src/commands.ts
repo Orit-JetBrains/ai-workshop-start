@@ -78,15 +78,22 @@ async function scanCommand(args: string[], context: Context) {
     : { groups: groupSkills(result.skills, result.repository.name), warnings: [] };
   // `--compare` prints both groupings beside each other instead of one of them: the shared words'
   // groups are the scan's own, and the model's are what `--cluster` would have printed alone.
+  // The model is asked only when there are enough skills to divide; with fewer than three it is not
+  // (`clusterSkills` groups them by shared words with no warning), so in a comparison it has no
+  // answer to show — the same as a model that could not be reached, but without a warning of its own.
+  const unasked = compare && result.skills.length < 3 && grouped.warnings.length === 0;
+  const warnings = [...result.warnings, ...grouped.warnings];
+  if (unasked) warnings.push('fewer than three skills to ask a model about; grouped by shared words instead');
   if (compare) {
     const words = groupSkills(result.skills, result.repository.name);
-    // A model that could not be asked has no column of its own: its warning says why, and what is
-    // beside the words would only be the words again.
-    printComparison(result.repository, result.skills, words, grouped.warnings.length > 0 ? undefined : grouped.groups, context);
+    // A model that was not asked, or could not be, has no column of its own: its warning says why,
+    // and what is beside the words would only be the words again.
+    const model = grouped.warnings.length > 0 || unasked ? undefined : grouped.groups;
+    printComparison(result.repository, result.skills, words, model, context);
   } else {
     printRepository(result.repository, result.skills, grouped.groups, context);
   }
-  for (const warning of [...result.warnings, ...grouped.warnings]) context.error(`warning: ${warning}`);
+  for (const warning of warnings) context.error(`warning: ${warning}`);
 }
 
 async function serveCommand(args: string[], context: Context) {

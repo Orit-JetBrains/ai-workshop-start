@@ -123,6 +123,28 @@ test('a model that cannot be asked has no column, and no agreement line', async 
   assert.match(scanned.stderr, /^warning: claude: not found on the PATH; grouped by shared words instead$/m);
 });
 
+test('fewer than three skills: the model is not asked, so it has no column and the warning says why', async (t) => {
+  // Two skills are not worth a model's answer, so none is asked for — the stand-in must never run.
+  const directory = repository(t, { 'api-get': 'Get one record.', 'api-list': 'List the records.' });
+  let asked = false;
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const code = await run(['scan', directory, '--compare'], {
+    open: (input) => openDirectory(input),
+    print: (text) => stdout.push(text),
+    error: (text) => stderr.push(text),
+    cluster: { run: async () => ((asked = true), { code: 0, stdout: '', stderr: '' }) },
+  });
+  assert.equal(code, 0, stderr.join('\n'));
+  assert.equal(asked, false, 'no model is run for two skills');
+  // The right column is suppressed — the words are not printed twice as if the model had answered —
+  // and there is no agreement line.
+  assert.match(stdout.join('\n'), /^by the words they share {17}by claude -p \(claude-haiku-4-5\)$/m);
+  assert.match(stdout.join('\n'), /^api · 2 skills {26}no groups: see the warning$/m);
+  assert.doesNotMatch(stdout.join('\n'), /agree about/);
+  assert.match(stderr.join('\n'), /^warning: fewer than three skills to ask a model about; grouped by shared words instead$/m);
+});
+
 test('the model asked for the comparison is the one named in the column', async (t) => {
   const stdout: string[] = [];
   let asked = '';
