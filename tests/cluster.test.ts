@@ -231,6 +231,20 @@ test('two groups the model labels the same word are one group, merged in the fir
   ]);
 });
 
+test('a group the model labels `other` is dropped, not drawn beside the wordless one', async (t) => {
+  const directory = repository(t);
+  // `other` is the word the wordless leftover group is drawn under. A model group labelled `other`
+  // must not print a second `other` section: it is dropped, and its skills fall to the wordless one.
+  const answer = { groups: [{ label: 'other', skills: [1, 2] }, { label: 'review', skills: [5, 6] }] };
+  const scanned = await cluster(directory, claude(directory, envelope(answer)));
+  assert.deepEqual(scanned.groups, [
+    ['review', ['review', 'review-fast']],
+    ['other', ['api-get', 'api-list', 'deploy', 'release-notes']],
+  ]);
+  // One `other` section, not two.
+  assert.equal(scanned.stdout.split('\n').filter((line) => /^other · \d+ skills?$/.test(line)).length, 1);
+});
+
 test('at most eight groups', async (t) => {
   const skills = Object.fromEntries(Array.from({ length: 20 }, (_, index) => [`skill-${index + 1}`, `Does thing ${index + 1}.`]));
   const directory = repository(t, skills);

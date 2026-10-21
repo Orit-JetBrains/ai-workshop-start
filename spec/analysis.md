@@ -80,9 +80,11 @@ the same way twice, where [the shared words](#groups) answer the same way on any
 - It answers `{"groups":[{"label":"<word>","skills":[<numbers>]}]}`, in the CLI's `result`; a code fence
   around it is allowed for, nothing else is
 - The answer is the model's, the **groups are the scan's**: a label that is not a word, or is too long,
-  is *dropped*; a number that is not a skill's, or is a skill another group already took, is *dropped*;
-  a group of fewer than two is *dropped*; what is left over is the **wordless** group, `other`, last.
-  Inside a group the skills keep the scan's order, **by name**, whatever order the model gave
+  or is the reserved word `other`, is *dropped*; a number that is not a skill's, or is a skill another
+  group already took, is *dropped*; a group of fewer than two is *dropped*; what is left over is the
+  **wordless** group, `other`, last. `other` is dropped because that is the word the wordless group is
+  drawn under, and one word is one group. Inside a group the skills keep the scan's order, **by name**,
+  whatever order the model gave
 - Two groups the model labels the **same word** are **one group**, merged in the first's place: a
   scan's groups are read by their word, so one word is one group, never two with the skills of both
 - **Every failure is a warning, and the shared words group the skills**

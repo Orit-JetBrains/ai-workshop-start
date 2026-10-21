@@ -162,7 +162,11 @@ function assign(skills: Skill[], groups: Answer['groups']): SkillGroup[] {
   for (const group of groups.slice(0, MOST_GROUPS)) {
     const word = group.label.trim().toLowerCase();
     // The label is a word of the same shape a shared word has: a group is read, not parsed.
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(word) || word.length > LONGEST_LABEL) continue;
+    // `other` is reserved: it is the word the wordless leftover group is drawn under, so a model
+    // group labelled `other` would print a second `other` section beside it — two groups under one
+    // word, the very thing merging same-word groups avoids. Dropping it sends its skills to the
+    // leftover group, where they join the one `other` instead.
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(word) || word.length > LONGEST_LABEL || word === 'other') continue;
     const members = [...new Set(group.skills)].filter(
       (number) => Number.isInteger(number) && number >= 1 && number <= skills.length && !taken.has(number),
     );
