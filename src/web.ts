@@ -129,35 +129,75 @@ const PAGE = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Skill Atlas</title>
 <style>
-  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-  body { margin: 0; display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+  /* Air brand tokens, taken from the --air-* custom properties JetBrains ships on jetbrains.com/air
+     (the product's own dark theme: background #1e1f22, Inter/JetBrains Sans text, a blue accent). */
+  :root {
+    color-scheme: dark;
+    --air-bg: #1e1f22;
+    --air-bg-elevated: #2b2d30;
+    --air-border: #ffffff21;
+    --air-hover: #393b40;
+    --air-selected: #43454a;
+    --air-text: #f2f2f2;
+    --air-text-secondary: #aeb0b5;
+    --air-text-disabled: #77797f;
+    --air-accent: #4c9aff;
+    --air-positive: #58a55c;
+    --air-dangerous: #db5c5c;
+    --air-warning: #d9a441;
+    --air-button: #3574f0;
+    --air-button-hover: #1868cb;
+    --air-button-active: #1d61ba;
+    --air-radius-xs: 4px;
+    --air-radius-sm: 6px;
+    --air-radius-md: 8px;
+    --air-radius-lg: 12px;
+    font-family: Inter, 'JetBrains Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; display: grid; grid-template-rows: auto 1fr; height: 100vh; background: var(--air-bg); color: var(--air-text); font-size: 14px; line-height: 20px; }
+  :focus-visible { outline: 2px solid var(--air-accent); outline-offset: 2px; }
   /* The top bar: the scan field on the left, the filter on the right. Both stay on screen whatever
      the list below shows, and only the list scrolls. */
-  header { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; padding: .75rem 1rem; border-bottom: 1px solid #8884; }
+  header { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; padding: .75rem 1.25rem; background: var(--air-bg-elevated); border-bottom: 1px solid var(--air-border); }
   form { display: flex; gap: .5rem; min-width: 0; }
-  form input { flex: 1; min-width: 0; font: inherit; padding: .4rem .6rem; }
-  form button { font: inherit; padding: .4rem 1rem; }
+  form input, #search input {
+    flex: 1; min-width: 0; font: inherit; color: var(--air-text); background: var(--air-bg);
+    border: 1px solid var(--air-border); border-radius: var(--air-radius-sm); padding: .45rem .7rem;
+  }
+  form input::placeholder, #search input::placeholder { color: var(--air-text-secondary); }
+  form input:focus, #search input:focus { outline: none; border-color: var(--air-accent); }
+  form button {
+    font: inherit; font-weight: 600; color: #fff; background: var(--air-button); border: none;
+    border-radius: var(--air-radius-sm); padding: .45rem 1.1rem; cursor: pointer;
+  }
+  form button:hover { background: var(--air-button-hover); }
+  form button:active { background: var(--air-button-active); }
   main { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; min-height: 0; }
-  #list, #file { overflow: auto; padding: 1rem; min-height: 0; }
-  #list { border-right: 1px solid #8884; }
+  #list, #file { overflow: auto; padding: 1.25rem; min-height: 0; }
+  #list { border-right: 1px solid var(--air-border); }
   #search { display: flex; align-items: center; gap: .5rem; min-width: 0; }
-  #search input { flex: 1; min-width: 0; font: inherit; padding: .4rem .6rem; }
-  #count { font-size: .85rem; opacity: .8; white-space: nowrap; }
-  h1 { font-size: 1.1rem; margin: 0 0 .75rem; }
+  #count { font-size: .8rem; color: var(--air-text-secondary); white-space: nowrap; }
+  h1 { font-size: 1rem; font-weight: 600; margin: 0 0 .85rem; }
   ul { list-style: none; margin: 0; padding: 0; }
   /* The word a group of skills shares, above them: a label, not something to choose. */
-  li.group { padding: .75rem .5rem .25rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
-  li.group .word { font-weight: 600; }
-  li.skill, li.repository { padding: .5rem; border-radius: 6px; cursor: pointer; }
-  li.skill:hover, li.repository:hover { background: #8882; }
-  li.skill[aria-selected="true"] { background: #4a90e233; }
+  li.group { padding: .85rem .6rem .3rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--air-text-secondary); }
+  li.group .word { font-weight: 600; color: var(--air-text); }
+  li.skill, li.repository { padding: .6rem; border-radius: var(--air-radius-sm); cursor: pointer; }
+  li.skill:hover, li.repository:hover { background: var(--air-hover); }
+  li.skill[aria-selected="true"] { background: var(--air-selected); }
   .name { font-weight: 600; }
-  .description, .copies, .hint { font-size: .9rem; opacity: .8; }
-  .updated { font-size: .8rem; opacity: .7; }
-  .link { font-size: .8rem; word-break: break-all; }
-  .warnings { margin-top: 1rem; font-size: .85rem; color: #b8860b; }
-  .error { color: #d33; }
-  pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: .9rem; }
+  .description, .copies, .hint { font-size: .85rem; color: var(--air-text-secondary); }
+  .updated { font-size: .78rem; color: var(--air-text-disabled); }
+  .link { font-size: .78rem; color: var(--air-accent); word-break: break-all; text-decoration: none; }
+  .link:hover { text-decoration: underline; }
+  .warnings { margin-top: 1rem; font-size: .82rem; color: var(--air-warning); }
+  .error { color: var(--air-dangerous); }
+  pre {
+    margin: 0; white-space: pre-wrap; word-break: break-word; font-size: .85rem; color: var(--air-text);
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--air-bg-elevated); border: 1px solid var(--air-border); border-radius: var(--air-radius-md); padding: .85rem;
+  }
 </style>
 </head>
 <body>
