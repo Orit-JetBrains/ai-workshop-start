@@ -129,34 +129,64 @@ const PAGE = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Skill Atlas</title>
 <style>
-  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-  body { margin: 0; display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+  /* The Air brand's own tokens (jetbrains.com/air): a fixed dark surface, not prefers-color-scheme,
+     so the page looks the same everywhere rather than switching with the OS. */
+  :root {
+    --air-background-primary: #1e1f22;
+    --air-background-secondary: #2b2d30;
+    --air-island-background: #2b2d30;
+    --air-list-item-hovered: #393b40;
+    --air-list-item-selected: #43454a;
+    --air-control-hovered: #4b4d52;
+    --air-border: #ffffff21;
+    --air-text-primary: #f2f2f2;
+    --air-text-secondary: #aeb0b5;
+    --air-text-disabled: #77797f;
+    --air-text-accent: #4c9aff;
+    --air-text-positive: #58a55c;
+    --air-text-dangerous: #db5c5c;
+    --air-icon-primary: #dfe1e5;
+    --air-icon-secondary: #aeb0b5;
+    --air-button-primary: #3574f0;
+    --air-radius-xs: 4px;
+    --air-radius-sm: 6px;
+    --air-radius-md: 8px;
+    --air-radius-lg: 12px;
+    color-scheme: dark;
+    font-family: Inter, system-ui, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; display: grid; grid-template-rows: auto 1fr; height: 100vh; background: var(--air-background-primary); color: var(--air-text-primary); }
   /* The top bar: the scan field on the left, the filter on the right. Both stay on screen whatever
      the list below shows, and only the list scrolls. */
-  header { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; padding: .75rem 1rem; border-bottom: 1px solid #8884; }
+  header { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; padding: .75rem 1rem; background: var(--air-background-secondary); border-bottom: 1px solid var(--air-border); }
   form { display: flex; gap: .5rem; min-width: 0; }
   form input { flex: 1; min-width: 0; font: inherit; padding: .4rem .6rem; }
   form button { font: inherit; padding: .4rem 1rem; }
+  input { background: var(--air-island-background); color: var(--air-text-primary); border: 1px solid var(--air-border); border-radius: var(--air-radius-sm); }
+  input::placeholder { color: var(--air-text-disabled); }
+  button { background: var(--air-button-primary); color: #fff; border: none; border-radius: var(--air-radius-sm); cursor: pointer; }
+  button:hover { background: var(--air-control-hovered); }
   main { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; min-height: 0; }
   #list, #file { overflow: auto; padding: 1rem; min-height: 0; }
-  #list { border-right: 1px solid #8884; }
+  #list { border-right: 1px solid var(--air-border); }
   #search { display: flex; align-items: center; gap: .5rem; min-width: 0; }
   #search input { flex: 1; min-width: 0; font: inherit; padding: .4rem .6rem; }
-  #count { font-size: .85rem; opacity: .8; white-space: nowrap; }
+  #count { font-size: .85rem; color: var(--air-text-secondary); white-space: nowrap; }
   h1 { font-size: 1.1rem; margin: 0 0 .75rem; }
   ul { list-style: none; margin: 0; padding: 0; }
   /* The word a group of skills shares, above them: a label, not something to choose. */
-  li.group { padding: .75rem .5rem .25rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+  li.group { padding: .75rem .5rem .25rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--air-text-secondary); }
   li.group .word { font-weight: 600; }
-  li.skill, li.repository { padding: .5rem; border-radius: 6px; cursor: pointer; }
-  li.skill:hover, li.repository:hover { background: #8882; }
-  li.skill[aria-selected="true"] { background: #4a90e233; }
+  li.skill, li.repository { padding: .5rem; border-radius: var(--air-radius-sm); cursor: pointer; }
+  li.skill:hover, li.repository:hover { background: var(--air-list-item-hovered); }
+  li.skill[aria-selected="true"] { background: var(--air-list-item-selected); }
   .name { font-weight: 600; }
-  .description, .copies, .hint { font-size: .9rem; opacity: .8; }
-  .updated { font-size: .8rem; opacity: .7; }
-  .link { font-size: .8rem; word-break: break-all; }
-  .warnings { margin-top: 1rem; font-size: .85rem; color: #b8860b; }
-  .error { color: #d33; }
+  .description, .copies, .hint { font-size: .9rem; color: var(--air-text-secondary); }
+  .updated { font-size: .8rem; color: var(--air-text-disabled); }
+  .link { font-size: .8rem; color: var(--air-text-accent); word-break: break-all; }
+  .warnings { margin-top: 1rem; font-size: .85rem; color: #d9a441; }
+  .error { color: var(--air-text-dangerous); }
   pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: .9rem; }
 </style>
 </head>

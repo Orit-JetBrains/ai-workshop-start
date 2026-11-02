@@ -44,7 +44,8 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${port}/`,
     viewport: VIEWPORT,
     deviceScaleFactor: 1,
-    // The page is `color-scheme: light dark`; the demo is the light one.
+    // The page is a fixed dark theme, not `prefers-color-scheme`, so this has no effect on it; kept
+    // light so a future page that does branch on it renders the demo's pinned side.
     colorScheme: 'light',
     locale: 'en-US',
     timezoneId: 'UTC',
